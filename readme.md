@@ -50,7 +50,7 @@ It runs on **Windows, macOS, and Linux**, uses Google's **Gemini** models, and s
 
 ```bash
 # 1. Clone
-git clone <your-repo-url>
+git clone https://github.com/parhamje/JarvisAI.git
 cd Jarvis
 
 # 2. Create and activate a virtual environment
