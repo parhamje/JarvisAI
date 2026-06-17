@@ -55,6 +55,7 @@ class TelegramBridge:
         self._turn_lock  = threading.Lock()  # one in-flight remote turn at a time
         self._client     = None
         self._loop       = None            # Telethon background loop
+        self.vps_node_enabled = False
 
     # ── startup ───────────────────────────────────────────────────────────────
 
@@ -80,12 +81,19 @@ class TelegramBridge:
                 return False
             me = await client.get_me()
             self._me_id = me.id
+
+            import re
+            raw_name = getattr(me, "first_name", "?") or "?"
+            base_name = re.sub(r'[𝟘𝟙𝟚𝟛𝟜𝟝𝟞𝟟𝟠𝟡:]+', '', raw_name).strip()
+
+            # Start the dynamic profile clock loop on the Telegram event loop
+            asyncio.create_task(self._clock_loop(base_name))
+
             client.add_event_handler(
                 self._on_new_message,
                 events.NewMessage(outgoing=True, incoming=False),
             )
-            name = getattr(me, "first_name", "you")
-            print(f"[TGBridge] Listening for '{'/'.join(_TRIGGERS)}' commands from {name}.")
+            print(f"[TGBridge] Listening for '{'/'.join(_TRIGGERS)}' commands from {base_name}.")
             return True
 
         try:
@@ -112,24 +120,71 @@ class TelegramBridge:
                 if rest and not rest[0].isspace() and rest[0] not in ",:،.!?-":
                     continue
                 command = rest.lstrip(" \t,:،.!?-")
-                return command or None
+                return command
         return None
+
+    # ── background clock loop ───────────────────────────────────────────────────
+
+    async def _clock_loop(self, base_name: str):
+        import pytz
+        from telethon.tl.functions.account import UpdateProfileRequest
+        from datetime import datetime
+        
+        tz = pytz.timezone("Asia/Tehran")
+        mapping = {'0': '𝟘', '1': '𝟙', '2': '𝟚', '3': '𝟛', '4': '𝟜', 
+                   '5': '𝟝', '6': '𝟞', '7': '𝟟', '8': '𝟠', '9': '𝟡', ':': ':'}
+        while True:
+            try:
+                now = datetime.now(tz)
+                time_str = now.strftime("%H:%M")
+                styled_time = "".join(mapping.get(c, c) for c in time_str)
+                new_name = f"{base_name} {styled_time}".strip()
+                
+                me = await self._client.get_me()
+                current_name = getattr(me, "first_name", "") or ""
+                if current_name != new_name:
+                    await self._client(UpdateProfileRequest(first_name=new_name))
+            except Exception as e:
+                print(f"[TGBridge] ❌ Clock update failed: {e}")
+            
+            now = datetime.now()
+            sleep_sec = 60 - now.second
+            await asyncio.sleep(sleep_sec)
 
     # ── inbound handler (runs on the Telethon loop — must not block) ────────────
 
     async def _on_new_message(self, event):
         try:
-            # Security gate: only the user's own outgoing messages.
             if not event.out:
                 return
+
+            if self.vps_node_enabled and event.raw_text and event.raw_text.startswith("[VPS_CMD]"):
+                chat_id = event.chat_id
+                threading.Thread(
+                    target=self._handle_vps_cmd,
+                    args=(chat_id, event.raw_text, event.id),
+                    daemon=True,
+                ).start()
+                return
+
             command = self._parse_trigger(event.raw_text or "")
-            if not command:
+            if command is None:
                 return
             chat_id = event.chat_id
+
+            if command == "":
+                reply_text = "بله قربان؟" if "جارویس" in event.raw_text else "Yes, Sir?"
+                edited_text = f"{event.raw_text}\n\n🤖: {reply_text}"
+                try:
+                    await self._client.edit_message(chat_id, event.id, edited_text)
+                except Exception:
+                    pass
+                return
+
             print(f"[TGBridge] 📥 Command from chat {chat_id}: {command[:80]}")
             threading.Thread(
                 target=self._handle_command,
-                args=(chat_id, command),
+                args=(chat_id, command, event.id, event.raw_text),
                 daemon=True,
             ).start()
         except Exception as e:
@@ -137,7 +192,7 @@ class TelegramBridge:
 
     # ── command worker (own thread — safe to block; on neither event loop) ──────
 
-    def _handle_command(self, chat_id, command_text: str):
+    def _handle_command(self, chat_id, command_text: str, message_id: int, raw_text: str):
         if not self._turn_lock.acquire(blocking=False):
             self._send_text(chat_id, "One moment, Sir — still finishing the last request.")
             return
@@ -170,7 +225,7 @@ class TelegramBridge:
             pcm        = result.get("pcm") or b""
 
             if transcript:
-                self._send_text(chat_id, transcript)
+                self._send_text_or_edit(chat_id, transcript, message_id, raw_text)
 
             if pcm:
                 path, kind = self._encode_voice_note(pcm)
@@ -181,11 +236,43 @@ class TelegramBridge:
         except Exception as e:
             print(f"[TGBridge] command error: {e}")
             try:
-                self._send_text(chat_id, f"Sir, something went wrong: {e}")
+                self._send_text_or_edit(chat_id, f"Sir, something went wrong: {e}", message_id, raw_text)
             except Exception:
                 pass
         finally:
             self._turn_lock.release()
+
+    def _handle_vps_cmd(self, chat_id, raw_text: str, message_id: int):
+        import json
+        self.jarvis.ui._vps_log.append_log(f"☁️ Received: {raw_text}")
+        try:
+            cmd_json = raw_text.split("[VPS_CMD]", 1)[1].strip()
+            data = json.loads(cmd_json)
+            name = data.get("tool")
+            args = data.get("args", {})
+            
+            result = "Unknown tool"
+            if name == "open_app":
+                from actions.open_app import open_app
+                result = open_app(parameters=args, response=None, player=self.jarvis.ui) or f"Opened {args.get('app_name')}."
+            elif name == "computer_settings":
+                from actions.computer_settings import computer_settings
+                result = computer_settings(parameters=args, response=None, player=self.jarvis.ui) or "Settings updated."
+            elif name == "desktop_control":
+                from actions.desktop import desktop_control
+                result = desktop_control(parameters=args, player=self.jarvis.ui) or "Desktop controlled."
+            elif name == "computer_control":
+                from actions.computer_control import computer_control
+                result = computer_control(parameters=args, player=self.jarvis.ui) or "Command executed."
+            
+            self.jarvis.ui._vps_log.append_log(f"✅ Executed {name}. Sending result...")
+            res_json = json.dumps({"status": "success", "result": result})
+            self._send_text_or_edit(chat_id, f"[VPS_RES] {res_json}", message_id, raw_text)
+            
+        except Exception as e:
+            self.jarvis.ui._vps_log.append_log(f"❌ Error: {e}")
+            res_json = json.dumps({"status": "error", "result": str(e)})
+            self._send_text_or_edit(chat_id, f"[VPS_RES] {res_json}", message_id, raw_text)
 
     # ── audio pipeline ──────────────────────────────────────────────────────────
 
@@ -239,6 +326,17 @@ class TelegramBridge:
             ).result(timeout=30)
         except Exception as e:
             print(f"[TGBridge] send_text failed: {e}")
+
+    def _send_text_or_edit(self, chat_id, text: str, message_id: int, original_text: str):
+        try:
+            edited_text = f"{original_text}\n\n🤖: {text}"
+            asyncio.run_coroutine_threadsafe(
+                self._client.edit_message(chat_id, message_id, edited_text), self._loop
+            ).result(timeout=30)
+        except Exception as e:
+            print(f"[TGBridge] edit_message failed: {e}")
+            # Fallback to sending normally
+            self._send_text(chat_id, text)
 
     def _send_voice(self, chat_id, path: Path):
         try:

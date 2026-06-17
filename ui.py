@@ -1024,6 +1024,19 @@ class MainWindow(QMainWindow):
         self.hud.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         body.addWidget(self.hud, stretch=5)
 
+        self._vps_mode = False
+        self._vps_panel = QWidget(self.hud)
+        self._vps_panel.setStyleSheet(f"background: rgba(1, 13, 20, 240); border: 1px solid {C.BORDER_A}; border-radius: 6px;")
+        self._vps_panel.hide()
+        vp_lay = QVBoxLayout(self._vps_panel)
+        vp_lay.setContentsMargins(12, 12, 12, 12)
+        vp_lbl = QLabel("☁️ VPS NODE LINK ACTIVE")
+        vp_lbl.setFont(QFont("Courier New", 11, QFont.Weight.Bold))
+        vp_lbl.setStyleSheet(f"color: {C.GREEN}; background: transparent;")
+        vp_lay.addWidget(vp_lbl)
+        self._vps_log = LogWidget()
+        vp_lay.addWidget(self._vps_log)
+
         self._right_panel = self._build_right_panel()
         body.addWidget(self._right_panel, stretch=0)
 
@@ -1070,6 +1083,10 @@ class MainWindow(QMainWindow):
                 (cw.height() - oh) // 2,
                 ow, oh,
             )
+        if hasattr(self, '_vps_panel') and self.hud:
+            hw, hh = self.hud.width(), self.hud.height()
+            pw, ph = int(hw * 0.85), int(hh * 0.8)
+            self._vps_panel.setGeometry((hw - pw) // 2, (hh - ph) // 2, pw, ph)
 
     def _update_metrics(self):
         snap = _metrics.snapshot()
@@ -1238,7 +1255,43 @@ class MainWindow(QMainWindow):
             )
             lay.addWidget(lbl)
 
+        lay.addSpacing(6)
+        self._btn_vps_link = QPushButton("VPS NODE: OFF")
+        self._btn_vps_link.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        self._btn_vps_link.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_vps_link.setStyleSheet(
+            f"QPushButton {{ background: {C.PANEL2}; color: {C.TEXT_DIM}; "
+            f"border: 1px solid {C.BORDER}; border-radius: 3px; padding: 6px; }}"
+            f"QPushButton:hover {{ background: {C.PRI_GHO}; color: {C.TEXT}; }}"
+        )
+        self._btn_vps_link.clicked.connect(self._toggle_vps_link)
+        lay.addWidget(self._btn_vps_link)
+
         return w
+
+    def _toggle_vps_link(self):
+        self._vps_mode = not getattr(self, '_vps_mode', False)
+        if self._vps_mode:
+            self._btn_vps_link.setText("VPS NODE: ON")
+            self._btn_vps_link.setStyleSheet(
+                f"QPushButton {{ background: {C.PRI_GHO}; color: {C.GREEN}; "
+                f"border: 1px solid {C.GREEN}; border-radius: 3px; padding: 6px; }}"
+            )
+            self._vps_panel.show()
+            self._vps_log.append_log("[sys] Local PC Node enabled.")
+            self._vps_log.append_log("[sys] Waiting for cloud commands via Telegram...")
+            if hasattr(self, 'on_vps_toggle') and callable(self.on_vps_toggle):
+                self.on_vps_toggle(True)
+        else:
+            self._btn_vps_link.setText("VPS NODE: OFF")
+            self._btn_vps_link.setStyleSheet(
+                f"QPushButton {{ background: {C.PANEL2}; color: {C.TEXT_DIM}; "
+                f"border: 1px solid {C.BORDER}; border-radius: 3px; padding: 6px; }}"
+                f"QPushButton:hover {{ background: {C.PRI_GHO}; color: {C.TEXT}; }}"
+            )
+            self._vps_panel.hide()
+            if hasattr(self, 'on_vps_toggle') and callable(self.on_vps_toggle):
+                self.on_vps_toggle(False)
     def _build_right_panel(self) -> QWidget:
         w = QWidget()
         w.setFixedWidth(_RIGHT_W)

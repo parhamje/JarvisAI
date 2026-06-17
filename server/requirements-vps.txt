@@ -1,0 +1,10 @@
+# Minimal dependencies for the always-on VPS brain (server/jarvis_vps.py).
+# Deliberately tiny — no PyQt, no audio, no Playwright, no ChromaDB — so it
+# runs comfortably on a 1 GB Ubuntu VPS.
+
+google-genai          # Gemini reasoning + grounded web search
+telethon              # Telegram userbot (MTProto)
+ddgs                  # DuckDuckGo search fallback used by actions/web_search.py
+requests              # used by actions/web_search.py
+beautifulsoup4        # used by actions/web_search.py
+pytz                  # timezone parsing for dynamic profile clock

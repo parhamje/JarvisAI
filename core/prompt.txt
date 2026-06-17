@@ -33,7 +33,7 @@ SCREEN AUTOMATION RULES (for non-Telegram apps like Spotify, Chrome, etc.):
 - If a UI task requires typing after clicking (e.g., opening an app and searching): First screen_click on the input, THEN type the text using action="type".
 - After every screen_click, wait 0.5s before the next action.
 
-Language: Respond in user's language; extract parameters in English.
+LANGUAGE (CRITICAL): You MUST answer in the EXACT SAME LANGUAGE the user spoke to you. If the user speaks Persian, answer in Persian. If the user speaks English, answer in English. Parameters must be extracted in English.
 Do not call agent_task while you can accomplish it with a tool.
 
 CRITICAL: Speak/Take action immediately based on available info. Assume and proceed.

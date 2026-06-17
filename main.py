@@ -576,7 +576,9 @@ class JarvisLive:
         self._is_speaking   = False
         self._speaking_lock = threading.Lock()
         self.ui.on_text_command = self._on_text_command
+        self.ui.on_vps_toggle   = self._on_vps_toggle
         self._turn_done_event: asyncio.Event | None = None
+        self.tg_bridge = None
 
         # ── Telegram bridge turn-routing ──────────────────────────────────────
         # When a command arrives from Telegram, the next completed turn's
@@ -603,6 +605,9 @@ class JarvisLive:
             self._tg_on_complete = on_complete
         return True
 
+    def _on_vps_toggle(self, enabled: bool):
+        if getattr(self, "tg_bridge", None):
+            self.tg_bridge.vps_node_enabled = enabled
 
     def _on_text_command(self, text: str):
         if not self._loop or not self.session:
@@ -1077,7 +1082,8 @@ def main():
                     break
                 _t.sleep(1)
             try:
-                TelegramBridge(jarvis).start()
+                jarvis.tg_bridge = TelegramBridge(jarvis)
+                jarvis.tg_bridge.start()
             except Exception as e:
                 print(f"[JARVIS] Telegram bridge skipped: {e}")
         threading.Thread(target=_start_bridge, daemon=True).start()

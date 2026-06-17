@@ -27,3 +27,5 @@ chromadb
 openwakeword
 mcp
 PySocks
+pytz
+
