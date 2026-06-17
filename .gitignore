@@ -1,0 +1,77 @@
+# ---- Secrets & credentials ----
+config/api_keys.json
+*.env
+.env
+*.key
+*.pem
+
+# ---- Telegram / Telethon sessions ----
+*.session
+*.session-journal
+
+# ---- Local memory & data stores ----
+memory/long_term.json
+memory/*.json
+memory/chroma_db/
+chroma/
+chroma_db/
+*.sqlite3
+*.db
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- Testing / coverage ----
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Logs & temp ----
+*.log
+logs/
+*.tmp
+tmp/
+
+# ---- IDE / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Playwright ----
+playwright/.cache/
+
+# ---- Media / screenshots (uncomment if generated) ----
+# *.png
+# *.jpg
+# screenshots/
