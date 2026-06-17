@@ -182,8 +182,8 @@ TOOL_DECLARATIONS = [
     },
     {
         "name": "computer_settings",
-        "description": "Controls local PC settings (volume, close app, play/pause media). Requires PC to be online.",
-        "parameters": {"type": "OBJECT", "properties": {"action": {"type": "STRING", "description": "e.g. volume_up, pause, close_app"}, "value": {"type": "STRING"}}, "required": ["action"]},
+        "description": "Controls local PC settings (volume, close app, play/pause media, shutdown, restart). Requires PC to be online.",
+        "parameters": {"type": "OBJECT", "properties": {"action": {"type": "STRING", "description": "e.g. volume_up, pause, close_app, shutdown, restart"}, "value": {"type": "STRING"}}, "required": ["action"]},
     },
 ]
 

@@ -1037,7 +1037,10 @@ class JarvisLive:
                     tg.create_task(self._receive_audio())
                     tg.create_task(self._play_audio())
 
-            except Exception as e:
+            except (Exception, BaseExceptionGroup) as e:
+                # ignore SystemExit/KeyboardInterrupt
+                if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                    raise
                 print(f"[JARVIS] !! ERROR: {e}")
                 traceback.print_exc()
             self.set_speaking(False)

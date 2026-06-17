@@ -983,6 +983,108 @@ class SetupOverlay(QWidget):
             return
         self.done.emit(key, self._sel_os)
 
+class SettingsOverlay(QWidget):
+    done = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(f"""
+            SettingsOverlay {{
+                background: rgba(0, 6, 10, 250);
+                border: 1px solid {C.BORDER_B};
+                border-radius: 6px;
+            }}
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(30, 22, 30, 22)
+        layout.setSpacing(8)
+
+        def _lbl(txt, font_size=9, bold=False, color=C.PRI, align=Qt.AlignmentFlag.AlignCenter):
+            w = QLabel(txt)
+            w.setAlignment(align)
+            w.setFont(QFont("Courier New", font_size, QFont.Weight.Bold if bold else QFont.Weight.Normal))
+            w.setStyleSheet(f"color: {color}; background: transparent;")
+            return w
+
+        layout.addWidget(_lbl("⚙️ SYSTEM CONFIGURATION", 13, True))
+        layout.addWidget(_lbl("Update API keys and settings.", 9, color=C.PRI_DIM))
+        layout.addSpacing(6)
+
+        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet(f"color: {C.BORDER};"); layout.addWidget(sep)
+        layout.addSpacing(4)
+        
+        # Load existing
+        existing = {}
+        if API_FILE.exists():
+            try: existing = json.loads(API_FILE.read_text(encoding="utf-8"))
+            except Exception: pass
+
+        def _mk_input(label_txt, placeholder, key, is_password=False):
+            layout.addWidget(_lbl(label_txt, 8, color=C.TEXT_DIM, align=Qt.AlignmentFlag.AlignLeft))
+            inp = QLineEdit()
+            if is_password:
+                inp.setEchoMode(QLineEdit.EchoMode.Password)
+            inp.setPlaceholderText(placeholder)
+            inp.setFont(QFont("Courier New", 10))
+            inp.setFixedHeight(30)
+            inp.setStyleSheet(f"""
+                QLineEdit {{ background: #000d12; color: {C.TEXT}; border: 1px solid {C.BORDER}; border-radius: 3px; padding: 4px 8px; }}
+                QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
+            """)
+            inp.setText(existing.get(key, ""))
+            layout.addWidget(inp)
+            return inp
+
+        self._inp_gemini = _mk_input("GEMINI API KEY", "AIza...", "gemini_api_key", True)
+        self._inp_tg_id  = _mk_input("TELEGRAM API ID", "1234567", "telegram_api_id")
+        self._inp_tg_hash = _mk_input("TELEGRAM API HASH", "abcdef0123...", "telegram_api_hash", True)
+        self._inp_tg_phone = _mk_input("TELEGRAM PHONE", "+1234567890", "telegram_phone")
+
+        layout.addSpacing(12)
+
+        btn_row = QHBoxLayout()
+        cancel_btn = QPushButton("CANCEL")
+        cancel_btn.setFont(QFont("Courier New", 10, QFont.Weight.Bold))
+        cancel_btn.setFixedHeight(36)
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{ background: transparent; color: {C.TEXT_DIM}; border: 1px solid {C.BORDER}; border-radius: 3px; }}
+            QPushButton:hover {{ background: #1a0000; border: 1px solid {C.RED}; color: {C.RED}; }}
+        """)
+        cancel_btn.clicked.connect(self.done.emit)
+
+        save_btn = QPushButton("▸ SAVE CHANGES")
+        save_btn.setFont(QFont("Courier New", 10, QFont.Weight.Bold))
+        save_btn.setFixedHeight(36)
+        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_btn.setStyleSheet(f"""
+            QPushButton {{ background: transparent; color: {C.PRI}; border: 1px solid {C.PRI_DIM}; border-radius: 3px; }}
+            QPushButton:hover {{ background: {C.PRI_GHO}; border: 1px solid {C.PRI}; }}
+        """)
+        save_btn.clicked.connect(self._save)
+        
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(save_btn)
+        layout.addLayout(btn_row)
+
+    def _save(self):
+        d = {}
+        if API_FILE.exists():
+            try: d = json.loads(API_FILE.read_text(encoding="utf-8"))
+            except Exception: pass
+            
+        d["gemini_api_key"] = self._inp_gemini.text().strip()
+        d["telegram_api_id"] = self._inp_tg_id.text().strip()
+        d["telegram_api_hash"] = self._inp_tg_hash.text().strip()
+        d["telegram_phone"] = self._inp_tg_phone.text().strip()
+        
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        API_FILE.write_text(json.dumps(d, indent=4), encoding="utf-8")
+        self.done.emit()
+
 
 class MainWindow(QMainWindow):
     _log_sig   = pyqtSignal(str)
@@ -1267,6 +1369,17 @@ class MainWindow(QMainWindow):
         self._btn_vps_link.clicked.connect(self._toggle_vps_link)
         lay.addWidget(self._btn_vps_link)
 
+        self._btn_settings = QPushButton("⚙️ SETTINGS")
+        self._btn_settings.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        self._btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_settings.setStyleSheet(
+            f"QPushButton {{ background: {C.PANEL2}; color: {C.TEXT_DIM}; "
+            f"border: 1px solid {C.BORDER}; border-radius: 3px; padding: 6px; }}"
+            f"QPushButton:hover {{ background: {C.PRI_GHO}; color: {C.TEXT}; }}"
+        )
+        self._btn_settings.clicked.connect(self._show_settings)
+        lay.addWidget(self._btn_settings)
+
         return w
 
     def _toggle_vps_link(self):
@@ -1292,6 +1405,26 @@ class MainWindow(QMainWindow):
             self._vps_panel.hide()
             if hasattr(self, 'on_vps_toggle') and callable(self.on_vps_toggle):
                 self.on_vps_toggle(False)
+
+    def _show_settings(self):
+        ov = SettingsOverlay(self.centralWidget())
+        cw = self.centralWidget()
+        ow, oh = 460, 480
+        ov.setGeometry(
+            (cw.width()  - ow) // 2,
+            (cw.height() - oh) // 2,
+            ow, oh,
+        )
+        ov.done.connect(self._on_settings_done)
+        ov.show()
+        self._overlay = ov
+
+    def _on_settings_done(self):
+        if self._overlay:
+            self._overlay.hide()
+            self._overlay = None
+        self._log_sig.emit("SYS: Settings saved. Please restart JARVIS to apply full changes.")
+
     def _build_right_panel(self) -> QWidget:
         w = QWidget()
         w.setFixedWidth(_RIGHT_W)
@@ -1536,6 +1669,14 @@ class JarvisUI:
     @on_text_command.setter
     def on_text_command(self, cb):
         self._win.on_text_command = cb
+
+    @property
+    def on_vps_toggle(self):
+        return getattr(self._win, 'on_vps_toggle', None)
+
+    @on_vps_toggle.setter
+    def on_vps_toggle(self, cb):
+        self._win.on_vps_toggle = cb
 
     def set_state(self, state: str):
         self._win._state_sig.emit(state)
