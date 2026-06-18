@@ -1042,6 +1042,7 @@ class SettingsOverlay(QWidget):
         self._inp_tg_id  = _mk_input("TELEGRAM API ID", "1234567", "telegram_api_id")
         self._inp_tg_hash = _mk_input("TELEGRAM API HASH", "abcdef0123...", "telegram_api_hash", True)
         self._inp_tg_phone = _mk_input("TELEGRAM PHONE", "+1234567890", "telegram_phone")
+        self._inp_or_key = _mk_input("OPENROUTER API KEY", "sk-or-v1...", "openrouter_api_key", True)
 
         layout.addSpacing(12)
 
@@ -1080,6 +1081,7 @@ class SettingsOverlay(QWidget):
         d["telegram_api_id"] = self._inp_tg_id.text().strip()
         d["telegram_api_hash"] = self._inp_tg_hash.text().strip()
         d["telegram_phone"] = self._inp_tg_phone.text().strip()
+        d["openrouter_api_key"] = self._inp_or_key.text().strip()
         
         os.makedirs(CONFIG_DIR, exist_ok=True)
         API_FILE.write_text(json.dumps(d, indent=4), encoding="utf-8")
@@ -1409,7 +1411,7 @@ class MainWindow(QMainWindow):
     def _show_settings(self):
         ov = SettingsOverlay(self.centralWidget())
         cw = self.centralWidget()
-        ow, oh = 460, 480
+        ow, oh = 460, 540
         ov.setGeometry(
             (cw.width()  - ow) // 2,
             (cw.height() - oh) // 2,

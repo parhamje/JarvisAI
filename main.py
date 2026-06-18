@@ -30,6 +30,7 @@ from actions.send_message      import send_message
 from actions.reminder          import reminder
 from actions.computer_settings import computer_settings
 from actions.screen_processor  import screen_process
+from actions.screen_vision     import analyze_screen
 from actions.youtube_video     import youtube_video
 from actions.desktop           import desktop_control
 from actions.browser_control   import browser_control
@@ -83,6 +84,11 @@ def _clean_transcript(text: str) -> str:
     return text.strip()
 
 TOOL_DECLARATIONS = [
+    {
+        "name": "analyze_screen",
+        "description": "Takes a screenshot of the user's PC and uses an advanced Vision AI to describe what is currently visible.",
+        "parameters": {"type": "OBJECT", "properties": {"prompt": {"type": "STRING", "description": "Specific question about the screen (e.g. 'Read the error message', 'What app is open?') - Optional."}}}
+    },
     {
         "name": "open_app",
         "description": (
@@ -720,6 +726,10 @@ class JarvisLive:
             elif name == "file_controller":
                 r = await loop.run_in_executor(None, lambda: file_controller(parameters=args, player=self.ui))
                 result = r or "Done."
+
+            elif name == "analyze_screen":
+                r = await loop.run_in_executor(None, lambda: analyze_screen(parameters=args, player=self.ui))
+                result = r or "Screen analyzed."
 
             elif name == "send_message":
                 r = await loop.run_in_executor(None, lambda: send_message(parameters=args, response=None, player=self.ui, session_memory=None))
