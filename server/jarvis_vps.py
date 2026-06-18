@@ -479,6 +479,14 @@ class JarvisVPS:
                 sender = await event.get_sender()
                 sender_name = getattr(sender, 'first_name', 'Someone') or 'Someone'
                 self._run_tg(self.tg.send_message('me', f"🔔 **Away Alert:** {sender_name} just messaged you:\n\"{event.raw_text}\"\n\n_I am handling the conversation._"))
+            else:
+                # Already notified for this chat. Should we reply?
+                if not event.is_private:
+                    # In groups, Jarvis only ever replies ONCE per away session to avoid spam.
+                    return
+                # In PV, Jarvis only replies if the user explicitly replies to one of Jarvis's previous messages.
+                if not event.is_reply:
+                    return
         else:
             if not command:
                 reply_text = "بله قربان؟" if "جارویس" in event.raw_text else "Yes, Sir? Give me a command."
