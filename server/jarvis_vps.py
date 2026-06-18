@@ -185,6 +185,11 @@ TOOL_DECLARATIONS = [
         "description": "Controls local PC settings (volume, close app, play/pause media, shutdown, restart). Requires PC to be online.",
         "parameters": {"type": "OBJECT", "properties": {"action": {"type": "STRING", "description": "e.g. volume_up, pause, close_app, shutdown, restart"}, "value": {"type": "STRING"}}, "required": ["action"]},
     },
+    {
+        "name": "set_away_mode",
+        "description": "Manually turn 'Away Mode' on or off. When ON, you will act as a secretary for incoming messages.",
+        "parameters": {"type": "OBJECT", "properties": {"enabled": {"type": "BOOLEAN"}}, "required": ["enabled"]},
+    },
 ]
 
 
@@ -211,6 +216,10 @@ class JarvisVPS:
 
         # Per-chat short conversation history: {chat_id: [genai Content-like dicts]}
         self._history: dict[int, list] = {}
+
+        self._last_active_time = time.time()
+        self._away_mode_manual = False
+        self._notified_chats   = set()
 
     # ── system prompt assembled fresh each turn (so memory/time stay current) ──
     def _system_instruction(self) -> str:
@@ -310,6 +319,12 @@ class JarvisVPS:
                                 except Exception:
                                     pass
                 return "The PC Node did not respond in time. It might be offline."
+
+            if name == "set_away_mode":
+                self._away_mode_manual = args.get("enabled", True)
+                if self._away_mode_manual:
+                    self._notified_chats.clear()
+                return f"Away mode set to {self._away_mode_manual}."
 
             return f"Unknown tool: {name}"
         except Exception as e:
@@ -422,26 +437,65 @@ class JarvisVPS:
         return None
 
     async def _on_message(self, event):
+        is_outgoing = event.out
+        now = time.time()
+        
+        if is_outgoing:
+            self._last_active_time = now
+            if self._away_mode_manual or self._notified_chats:
+                self._away_mode_manual = False
+                self._notified_chats.clear()
+                print("[VPS] User is active. Away mode disabled.")
+        
         if event.raw_text and (event.raw_text.startswith("[VPS_CMD]") or event.raw_text.startswith("[VPS_RES]")):
             return
 
         command = self._strip_trigger(event.raw_text)
-        if command is None:
-            return  # not addressed to JARVIS — ignore
-        if not command:
-            reply_text = "بله قربان؟" if "جارویس" in event.raw_text else "Yes, Sir? Give me a command."
-            edited_text = f"{event.raw_text}\n\n🤖: {reply_text}"
-            try:
-                await event.edit(edited_text)
-            except Exception:
-                await event.reply(reply_text)
-            return
-
         chat_id = event.chat_id
-        print(f"\n[VPS] 💬 ({chat_id}) {command}")
+        
+        is_away = self._away_mode_manual or (now - self._last_active_time > 4 * 60)
+        
+        if command is None:
+            # Not explicitly addressed to Jarvis.
+            if not is_away or is_outgoing:
+                return
+                
+            # Away mode is ON and this is an incoming message.
+            if not (event.is_private or event.mentioned):
+                return
+                
+            command = event.raw_text
+            away_context = (
+                "[System: Parham is away/offline. You are JARVIS acting as his secretary. "
+                "Reply to this user politely on his behalf.] "
+                f"User message: {command}"
+            )
+            command_to_think = away_context
+            
+            # Send notification if not already notified
+            if chat_id not in self._notified_chats:
+                self._notified_chats.add(chat_id)
+                sender = await event.get_sender()
+                sender_name = getattr(sender, 'first_name', 'Someone') or 'Someone'
+                self._run_tg(self.tg.send_message('me', f"🔔 **Away Alert:** {sender_name} just messaged you:\n\"{event.raw_text}\"\n\n_I am handling the conversation._"))
+        else:
+            if not command:
+                reply_text = "بله قربان؟" if "جارویس" in event.raw_text else "Yes, Sir? Give me a command."
+                edited_text = f"{event.raw_text}\n\n🤖: {reply_text}"
+                try:
+                    if is_outgoing:
+                        await event.edit(edited_text)
+                    else:
+                        await event.reply(reply_text)
+                except Exception:
+                    await event.reply(reply_text)
+                return
+            command_to_think = command
+
+        print(f"\n[VPS] 💬 ({chat_id}) {command_to_think[:100]}")
         try:
             # Reasoning is blocking (sync google-genai), so keep the loop responsive.
-            answer = await self._loop.run_in_executor(None, self._think, chat_id, command)
+            answer = await self._loop.run_in_executor(None, self._think, chat_id, command_to_think)
         except Exception as e:
             answer = f"I hit an error, Sir: {e}"
             print(f"[VPS] ❌ {e}")
@@ -449,8 +503,12 @@ class JarvisVPS:
         # Telegram hard-limits messages to 4096 chars.
         edited_text = f"{event.raw_text}\n\n🤖: {answer[:4000]}"
         try:
-            await event.edit(edited_text)
-            print(f"[VPS] ✅ edited: {answer[:80]}")
+            if is_outgoing:
+                await event.edit(edited_text)
+                print(f"[VPS] ✅ edited: {answer[:80]}")
+            else:
+                await event.reply(f"🤖: {answer[:4000]}")
+                print(f"[VPS] ✅ replied: {answer[:80]}")
         except Exception as e:
             # Fallback to reply if edit fails
             await event.reply(answer[:4000])
@@ -467,7 +525,8 @@ class JarvisVPS:
 
         self._loop.create_task(self._clock_loop(base_name))
 
-        self.tg.add_event_handler(self._on_message, events.NewMessage(outgoing=True))
+        self.tg.add_event_handler(self._on_message, events.NewMessage())
+        print("[VPS] Event handlers registered.")
         await self.tg.run_until_disconnected()
 
 
