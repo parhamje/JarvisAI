@@ -467,7 +467,8 @@ class JarvisVPS:
             command = event.raw_text
             away_context = (
                 "[System: Parham is away/offline. You are JARVIS acting as his secretary. "
-                "Reply to this user politely on his behalf.] "
+                "Reply to this user politely on his behalf. CRITICAL: You MUST answer in the EXACT SAME LANGUAGE "
+                "the user spoke to you (e.g., if they speak Persian, reply in Persian).] "
                 f"User message: {command}"
             )
             command_to_think = away_context
