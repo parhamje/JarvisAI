@@ -219,6 +219,7 @@ class JarvisVPS:
 
         self._last_active_time = time.time()
         self._away_mode_manual = False
+        self._auto_away_enabled = True
         self._notified_chats   = set()
 
     # ── system prompt assembled fresh each turn (so memory/time stay current) ──
@@ -453,7 +454,23 @@ class JarvisVPS:
         command = self._strip_trigger(event.raw_text)
         chat_id = event.chat_id
         
-        is_away = self._away_mode_manual or (now - self._last_active_time > 4 * 60)
+        # Hardcoded bypass to avoid API limits
+        if command and is_outgoing:
+            cmd_lower = command.lower().strip()
+            if cmd_lower in ["disable away mode", "away mode off", "turn off secretary", "خاموش کردن حالت منشی", "منشی خاموش", "دستیار خاموش"]:
+                self._auto_away_enabled = False
+                self._away_mode_manual = False
+                self._notified_chats.clear()
+                try: await event.edit(f"{event.raw_text}\n\n🤖: Auto-Away Mode disabled! I will not reply to incoming messages.")
+                except: pass
+                return
+            if cmd_lower in ["enable away mode", "away mode on", "turn on secretary", "روشن کردن حالت منشی", "منشی روشن", "دستیار روشن"]:
+                self._auto_away_enabled = True
+                try: await event.edit(f"{event.raw_text}\n\n🤖: Auto-Away Mode enabled! I will act as your secretary after 4 mins of inactivity.")
+                except: pass
+                return
+        
+        is_away = self._away_mode_manual or (self._auto_away_enabled and (now - self._last_active_time > 4 * 60))
         
         if command is None:
             # Not explicitly addressed to Jarvis.
