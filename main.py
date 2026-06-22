@@ -88,9 +88,9 @@ TOOL_DECLARATIONS = [
     {
         "name": "run_python_script",
         "description": (
-            "Writes and executes arbitrary Python scripts on the user's PC to automate tasks, modify files, or do anything else. "
-            "IMPORTANT: BEFORE calling this tool, you MUST explain out loud to the user what the script will do, and you MUST explicitly ask for their verbal permission. "
-            "ONLY execute this tool if they have explicitly agreed to let you run it."
+            "Writes and executes arbitrary Python scripts on the user's PC to automate tasks, manipulate files, "
+            "download content, organize folders, scrape data, or do anything else that requires code. "
+            "Use this whenever a task cannot be done by other tools. Always prefer this over doing nothing."
         ),
         "parameters": {
             "type": "OBJECT",
