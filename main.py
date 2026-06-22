@@ -31,6 +31,8 @@ from actions.reminder          import reminder
 from actions.computer_settings import computer_settings
 from actions.screen_processor  import screen_process
 from actions.screen_vision     import analyze_screen
+from actions.webcam_vision     import analyze_webcam
+from actions.browser_agent     import browser_agent as autonomous_browser
 from actions.python_agent      import run_python_script
 from actions.youtube_video     import youtube_video
 from actions.desktop           import desktop_control
@@ -85,6 +87,36 @@ def _clean_transcript(text: str) -> str:
     return text.strip()
 
 TOOL_DECLARATIONS = [
+    {
+        "name": "analyze_webcam",
+        "description": "Captures a frame from the user's webcam and uses Vision AI to describe what it sees. Use when asked about what's in front of the camera, who is in the room, or what the user is holding.",
+        "parameters": {"type": "OBJECT", "properties": {"prompt": {"type": "STRING", "description": "Specific question about what to look for in the webcam image. Optional."}}}
+    },
+    {
+        "name": "autonomous_browser",
+        "description": (
+            "Controls a real Chrome browser to navigate websites, click buttons, fill forms, extract page content, "
+            "and take screenshots analyzed by Vision AI. Use this for ANY task that requires real website interaction: "
+            "watching YouTube, shopping, searching with JavaScript-heavy sites, filling forms, logging in, etc. "
+            "Chain multiple actions (navigate -> click -> type -> extract) to complete complex web tasks. "
+            "Actions: navigate, click, type, press, scroll, extract, screenshot, search, wait."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action":    {"type": "STRING",  "description": "navigate | click | type | press | scroll | extract | screenshot | search | wait"},
+                "url":       {"type": "STRING",  "description": "URL to navigate to"},
+                "selector":  {"type": "STRING",  "description": "CSS selector for click/type actions"},
+                "text":      {"type": "STRING",  "description": "Text to type, or text of element to click"},
+                "query":     {"type": "STRING",  "description": "Search query for the 'search' action"},
+                "key":       {"type": "STRING",  "description": "Key to press e.g. 'Enter'"},
+                "direction": {"type": "STRING",  "description": "Scroll direction: up | down"},
+                "prompt":    {"type": "STRING",  "description": "Question for vision AI when using screenshot action"},
+                "wait_ms":   {"type": "INTEGER", "description": "Milliseconds to wait after action (default: 1500)"}
+            },
+            "required": ["action"]
+        }
+    },
     {
         "name": "run_python_script",
         "description": (
@@ -749,6 +781,14 @@ class JarvisLive:
             elif name == "analyze_screen":
                 r = await loop.run_in_executor(None, lambda: analyze_screen(parameters=args, player=self.ui))
                 result = r or "Screen analyzed."
+
+            elif name == "analyze_webcam":
+                r = await loop.run_in_executor(None, lambda: analyze_webcam(parameters=args, player=self.ui))
+                result = r or "Webcam analyzed."
+
+            elif name == "autonomous_browser":
+                r = await loop.run_in_executor(None, lambda: autonomous_browser(parameters=args, player=self.ui))
+                result = r or "Browser action completed."
 
             elif name == "run_python_script":
                 r = await loop.run_in_executor(None, lambda: run_python_script(parameters=args, player=self.ui))
