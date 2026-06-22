@@ -19,8 +19,8 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import (
     QBrush, QColor, QDragEnterEvent, QDropEvent, QFont, QFontDatabase,
-    QKeySequence, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap,
-    QRadialGradient, QShortcut,
+    QImage, QKeySequence, QLinearGradient, QPainter, QPainterPath, QPen,
+    QPixmap, QRadialGradient, QShortcut,
 )
 from PyQt6.QtWidgets import (
     QApplication, QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
@@ -71,6 +71,88 @@ class C:
 
 def qcol(h: str, a: int = 255) -> QColor:
     c = QColor(h); c.setAlpha(a); return c
+
+
+class CameraWidget(QWidget):
+    """Live webcam feed panel using OpenCV + QTimer."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cap   = None
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._update_frame)
+        self._active = False
+
+        self.setFixedHeight(200)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(f"background: #000508; border: 1px solid {C.BORDER}; border-radius: 4px;")
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+
+        self._view = QLabel()
+        self._view.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._view.setStyleSheet("background: transparent; border: none;")
+        self._view.setScaledContents(False)
+        lay.addWidget(self._view, stretch=1)
+
+        self._status = QLabel("◈  CAMERA OFFLINE")
+        self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._status.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        self._status.setFixedHeight(22)
+        self._status.setStyleSheet(f"color: {C.TEXT_DIM}; background: #000810; border: none; border-top: 1px solid {C.BORDER};")
+        lay.addWidget(self._status)
+
+    def start(self):
+        try:
+            import cv2
+            self._cap = cv2.VideoCapture(0)
+            if not self._cap.isOpened():
+                self._status.setText("⚠  NO CAMERA FOUND")
+                return
+            self._active = True
+            self._status.setText("● LIVE")
+            self._status.setStyleSheet(f"color: {C.GREEN}; background: #000810; border: none; border-top: 1px solid {C.BORDER};")
+            self._timer.start(66)  # ~15 fps
+        except ImportError:
+            self._status.setText("⚠  opencv-python not installed")
+
+    def stop(self):
+        self._active = False
+        self._timer.stop()
+        if self._cap:
+            self._cap.release()
+            self._cap = None
+        self._view.clear()
+        self._status.setText("◈  CAMERA OFFLINE")
+        self._status.setStyleSheet(f"color: {C.TEXT_DIM}; background: #000810; border: none; border-top: 1px solid {C.BORDER};")
+
+    def _update_frame(self):
+        if not self._cap:
+            return
+        try:
+            import cv2
+            ret, frame = self._cap.read()
+            if not ret:
+                return
+            # Convert BGR -> RGB
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = frame.shape
+            img = QImage(frame.data, w, h, ch * w, QImage.Format.Format_RGB888)
+            px = QPixmap.fromImage(img)
+            # Scale to fit the label while keeping aspect ratio
+            self._view.setPixmap(
+                px.scaled(self._view.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                          Qt.TransformationMode.SmoothTransformation)
+            )
+        except Exception:
+            pass
+
+    def closeEvent(self, event):
+        self.stop()
+        super().closeEvent(event)
+
 
 class _SysMetrics:
     def __init__(self):
@@ -1177,6 +1259,23 @@ class MainWindow(QMainWindow):
         else:
             self.showFullScreen()
 
+    def _toggle_camera(self):
+        if self._camera_widget._active:
+            self._camera_widget.stop()
+            self._btn_camera.setText("📷  CAMERA: OFF")
+            self._btn_camera.setStyleSheet(
+                f"QPushButton {{ background: {C.PANEL2}; color: {C.TEXT_DIM}; "
+                f"border: 1px solid {C.BORDER}; border-radius: 3px; }}"
+                f"QPushButton:hover {{ background: {C.PRI_GHO}; color: {C.TEXT}; }}"
+            )
+        else:
+            self._camera_widget.start()
+            self._btn_camera.setText("📷  CAMERA: LIVE")
+            self._btn_camera.setStyleSheet(
+                f"QPushButton {{ background: {C.PRI_GHO}; color: {C.GREEN}; "
+                f"border: 1px solid {C.GREEN}; border-radius: 3px; }}"
+            )
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if self._overlay and self._overlay.isVisible():
@@ -1463,6 +1562,27 @@ class MainWindow(QMainWindow):
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
         sep2.setStyleSheet(f"color: {C.BORDER}; margin: 2px 0;")
         lay.addWidget(sep2)
+
+        # ── CAMERA ─────────────────────────────────────────────────────────────
+        lay.addWidget(_sec("CAMERA FEED"))
+        self._camera_widget = CameraWidget()
+        lay.addWidget(self._camera_widget)
+
+        self._btn_camera = QPushButton("📷  CAMERA: OFF")
+        self._btn_camera.setFixedHeight(26)
+        self._btn_camera.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        self._btn_camera.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_camera.setStyleSheet(
+            f"QPushButton {{ background: {C.PANEL2}; color: {C.TEXT_DIM}; "
+            f"border: 1px solid {C.BORDER}; border-radius: 3px; }}"
+            f"QPushButton:hover {{ background: {C.PRI_GHO}; color: {C.TEXT}; }}"
+        )
+        self._btn_camera.clicked.connect(self._toggle_camera)
+        lay.addWidget(self._btn_camera)
+
+        sep3 = QFrame(); sep3.setFrameShape(QFrame.Shape.HLine)
+        sep3.setStyleSheet(f"color: {C.BORDER}; margin: 2px 0;")
+        lay.addWidget(sep3)
 
         lay.addWidget(_sec("COMMAND INPUT"))
         lay.addLayout(self._build_input_row())
