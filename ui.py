@@ -46,27 +46,27 @@ _OS = platform.system()  # "Windows" | "Darwin" | "Linux"
 
 
 class C:
-    BG        = "#00060a"
-    PANEL     = "#010d14"
-    PANEL2    = "#010f18"
-    BORDER    = "#0d3347"
-    BORDER_B  = "#1a5c7a"
-    BORDER_A  = "#0f4060"
-    PRI       = "#00d4ff"
-    PRI_DIM   = "#007a99"
-    PRI_GHO   = "#001f2e"
-    ACC       = "#ff6b00"
-    ACC2      = "#ffcc00"
-    GREEN     = "#00ff88"
-    GREEN_D   = "#00aa55"
-    RED       = "#ff3355"
-    MUTED_C   = "#ff3366"
-    TEXT      = "#8ffcff"
-    TEXT_DIM  = "#3a8a9a"
-    TEXT_MED  = "#5ab8cc"
-    WHITE     = "#d8f8ff"
-    DARK      = "#000d14"
-    BAR_BG    = "#011520"
+    BG        = "#00040a"
+    PANEL     = "#000c14"
+    PANEL2    = "#000e18"
+    BORDER    = "#0a2d42"
+    BORDER_B  = "#155f80"
+    BORDER_A  = "#0d3d58"
+    PRI       = "#00e5ff"   # brighter cyan
+    PRI_DIM   = "#006b80"
+    PRI_GHO   = "#001a26"
+    ACC       = "#ff7700"
+    ACC2      = "#ffd000"
+    GREEN     = "#00ff99"
+    GREEN_D   = "#00cc66"
+    RED       = "#ff2244"
+    MUTED_C   = "#ff2255"
+    TEXT      = "#a0feff"
+    TEXT_DIM  = "#2e7a8a"
+    TEXT_MED  = "#50c0d8"
+    WHITE     = "#e0faff"
+    DARK      = "#00080f"
+    BAR_BG    = "#010e18"
 
 
 def qcol(h: str, a: int = 255) -> QColor:
@@ -85,7 +85,7 @@ class CameraWidget(QWidget):
 
         self.setFixedHeight(200)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet(f"background: #000508; border: 1px solid {C.BORDER}; border-radius: 4px;")
+        self.setStyleSheet(f"background: #000508; border: 2px solid {{C.BORDER_B}}; border-radius: 6px;")
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -101,7 +101,7 @@ class CameraWidget(QWidget):
         self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._status.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
         self._status.setFixedHeight(22)
-        self._status.setStyleSheet(f"color: {C.TEXT_DIM}; background: #000810; border: none; border-top: 1px solid {C.BORDER};")
+        self._status.setStyleSheet(f"color: {{C.TEXT_DIM}}; background: #000810; border: none; border-top: 1px solid {{C.BORDER}}; letter-spacing: 2px;")
         lay.addWidget(self._status)
 
     def start(self):
@@ -116,7 +116,7 @@ class CameraWidget(QWidget):
                 return
             self._active = True
             self._status.setText("● LIVE")
-            self._status.setStyleSheet(f"color: {C.GREEN}; background: #000810; border: none; border-top: 1px solid {C.BORDER};")
+            self._status.setStyleSheet(f"color: {{C.GREEN}}; background: #001a0f; border: none; border-top: 1px solid {{C.BORDER_B}}; letter-spacing: 2px;")
             self._timer.start(66)  # ~15 fps
         except ImportError:
             self._status.setText("⚠  opencv-python not installed")
@@ -129,7 +129,7 @@ class CameraWidget(QWidget):
             self._cap = None
         self._view.clear()
         self._status.setText("◈  CAMERA OFFLINE")
-        self._status.setStyleSheet(f"color: {C.TEXT_DIM}; background: #000810; border: none; border-top: 1px solid {C.BORDER};")
+        self._status.setStyleSheet(f"color: {{C.TEXT_DIM}}; background: #000810; border: none; border-top: 1px solid {{C.BORDER}}; letter-spacing: 2px;")
 
     def _update_frame(self):
         if not self._cap:
@@ -606,11 +606,14 @@ class MetricBar(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         W, H = self.width(), self.height()
 
-        p.setBrush(QBrush(qcol(C.PANEL2)))
+        grad = QLinearGradient(0, 0, 0, H)
+        grad.setColorAt(0, qcol("#010d18"))
+        grad.setColorAt(1, qcol("#000810"))
+        p.setBrush(QBrush(grad))
         p.setPen(QPen(qcol(C.BORDER_A), 1))
         p.drawRoundedRect(QRectF(1, 1, W - 2, H - 2), 4, 4)
 
-        bar_h   = 4
+        bar_h   = 5
         bar_y   = H - bar_h - 5
         bar_w   = W - 12
         bar_x   = 6
@@ -630,12 +633,15 @@ class MetricBar(QWidget):
         if fill_w > 0:
             p.setBrush(QBrush(bar_col))
             p.drawRoundedRect(QRectF(bar_x, bar_y, fill_w, bar_h), 2, 2)
+            # subtle glow
+            p.setBrush(QBrush(qcol(bar_col.name(), 60)))
+            p.drawRoundedRect(QRectF(bar_x, bar_y - 1, fill_w + 2, bar_h + 2), 2, 2)
 
         p.setFont(QFont("Courier New", 7, QFont.Weight.Bold))
         p.setPen(QPen(qcol(C.TEXT_DIM), 1))
         p.drawText(QRectF(8, 5, 50, 14), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self._label)
 
-        p.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
+        p.setFont(QFont("Courier New", 10, QFont.Weight.Bold))
         p.setPen(QPen(bar_col if self._text != "--" else qcol(C.TEXT_DIM), 1))
         p.drawText(QRectF(0, 4, W - 6, 16), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, self._text)
 
@@ -648,23 +654,25 @@ class LogWidget(QTextEdit):
         self.setFont(QFont("Courier New", 9))
         self.setStyleSheet(f"""
             QTextEdit {{
-                background: {C.PANEL};
-                color: {C.TEXT};
-                border: 1px solid {C.BORDER};
-                border-radius: 4px;
-                padding: 6px;
-                selection-background-color: {C.PRI_GHO};
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #000c16, stop:1 #00060e);
+                color: {{C.TEXT}};
+                border: 1px solid {{C.BORDER_B}};
+                border-radius: 6px;
+                padding: 8px;
+                selection-background-color: {{C.PRI_GHO}};
             }}
             QScrollBar:vertical {{
-                background: {C.BG};
-                width: 8px;
+                background: {{C.BG}};
+                width: 6px;
                 border: none;
+                border-radius: 3px;
             }}
             QScrollBar::handle:vertical {{
-                background: {C.BORDER_B};
-                border-radius: 4px;
+                background: {{C.BORDER_B}};
+                border-radius: 3px;
                 min-height: 20px;
             }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
         """)
         self._queue: list[str] = []
         self._typing  = False
@@ -948,9 +956,9 @@ class SetupOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             SetupOverlay {{
-                background: rgba(0, 6, 10, 245);
-                border: 1px solid {C.BORDER_B};
-                border-radius: 6px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #001020, stop:1 #00060e);
+                border: 2px solid {{C.BORDER_B}};
+                border-radius: 10px;
             }}
         """)
 
@@ -986,13 +994,13 @@ class SetupOverlay(QWidget):
         self._key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._key_input.setPlaceholderText("AIza…")
         self._key_input.setFont(QFont("Courier New", 10))
-        self._key_input.setFixedHeight(32)
+        self._key_input.setFixedHeight(34)
         self._key_input.setStyleSheet(f"""
             QLineEdit {{
-                background: #000d12; color: {C.TEXT};
-                border: 1px solid {C.BORDER}; border-radius: 3px; padding: 4px 8px;
+                background: #000d12; color: {{C.TEXT}};
+                border: 1px solid {{C.BORDER}}; border-radius: 5px; padding: 4px 8px;
             }}
-            QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
+            QLineEdit:focus {{ border: 1px solid {{C.PRI}}; }}
         """)
         layout.addWidget(self._key_input)
         layout.addSpacing(12)
@@ -1023,15 +1031,15 @@ class SetupOverlay(QWidget):
 
         init_btn = QPushButton("▸  INITIALISE SYSTEMS")
         init_btn.setFont(QFont("Courier New", 10, QFont.Weight.Bold))
-        init_btn.setFixedHeight(36)
+        init_btn.setFixedHeight(38)
         init_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         init_btn.setStyleSheet(f"""
             QPushButton {{
-                background: transparent; color: {C.PRI};
-                border: 1px solid {C.PRI_DIM}; border-radius: 3px;
+                background: transparent; color: {{C.PRI}};
+                border: 1px solid {{C.PRI_DIM}}; border-radius: 5px;
             }}
             QPushButton:hover {{
-                background: {C.PRI_GHO}; border: 1px solid {C.PRI};
+                background: {{C.PRI_GHO}}; border: 1px solid {{C.PRI}};
             }}
         """)
         init_btn.clicked.connect(self._submit)
@@ -1076,9 +1084,9 @@ class SettingsOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             SettingsOverlay {{
-                background: rgba(0, 6, 10, 250);
-                border: 1px solid {C.BORDER_B};
-                border-radius: 6px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #001020, stop:1 #00060e);
+                border: 2px solid {{C.BORDER_B}};
+                border-radius: 10px;
             }}
         """)
         
@@ -1347,15 +1355,15 @@ class MainWindow(QMainWindow):
 
     def _build_header(self) -> QWidget:
         w = QWidget()
-        w.setFixedHeight(54)
-        w.setStyleSheet(f"background: {C.DARK}; border-bottom: 1px solid {C.BORDER_B};")
+        w.setFixedHeight(58)
+        w.setStyleSheet(f"background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #001018, stop:1 #00060c); border-bottom: 2px solid {{C.BORDER_B}};")
         lay = QHBoxLayout(w)
         lay.setContentsMargins(16, 0, 16, 0)
 
         def _badge(txt, color=C.TEXT_MED):
             l = QLabel(txt)
             l.setFont(QFont("Courier New", 8))
-            l.setStyleSheet(f"color: {color}; background: transparent;")
+            l.setStyleSheet(f"color: {{color}}; background: transparent; letter-spacing: 1px;")
             return l
 
         lay.addWidget(_badge("PARHAM's JARVIS", C.PRI_DIM))
@@ -1396,15 +1404,15 @@ class MainWindow(QMainWindow):
     def _build_left_panel(self) -> QWidget:
         w = QWidget()
         w.setFixedWidth(_LEFT_W)
-        w.setStyleSheet(f"background: {C.DARK}; border-right: 1px solid {C.BORDER};")
+        w.setStyleSheet(f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #000810, stop:1 #00060c); border-right: 1px solid {{C.BORDER_B}};")
         lay = QVBoxLayout(w)
         lay.setContentsMargins(8, 10, 8, 10)
         lay.setSpacing(6)
 
         hdr = QLabel("◈ SYS MONITOR")
         hdr.setFont(QFont("Courier New", 7, QFont.Weight.Bold))
-        hdr.setStyleSheet(f"color: {C.PRI}; background: transparent; "
-                          f"border-bottom: 1px solid {C.BORDER}; padding-bottom: 4px;")
+        hdr.setStyleSheet(f"color: {{C.PRI}}; background: transparent; "
+                          f"border-bottom: 1px solid {{C.BORDER_B}}; padding-bottom: 4px; letter-spacing: 1px;")
         lay.addWidget(hdr)
         lay.addSpacing(2)
 
@@ -1456,8 +1464,8 @@ class MainWindow(QMainWindow):
             lbl.setFont(QFont("Courier New", 7, QFont.Weight.Bold))
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             lbl.setStyleSheet(
-                f"color: {col}; background: {C.PANEL2};"
-                f"border: 1px solid {C.BORDER_A}; border-radius: 3px; padding: 4px;"
+                f"color: {{col}}; background: {{C.PANEL2}};"
+                f"border: 1px solid {{C.BORDER_A}}; border-top: 2px solid {{C.BORDER_B}}; border-radius: 4px; padding: 4px; letter-spacing: 1px;"
             )
             lay.addWidget(lbl)
 
@@ -1532,15 +1540,15 @@ class MainWindow(QMainWindow):
     def _build_right_panel(self) -> QWidget:
         w = QWidget()
         w.setFixedWidth(_RIGHT_W)
-        w.setStyleSheet(f"background: {C.DARK}; border-left: 1px solid {C.BORDER};")
+        w.setStyleSheet(f"background: qlineargradient(x1:1, y1:0, x2:0, y2:0, stop:0 #000810, stop:1 #00060c); border-left: 2px solid {{C.BORDER_B}};")
         lay = QVBoxLayout(w)
         lay.setContentsMargins(8, 8, 8, 8)
         lay.setSpacing(6)
 
         def _sec(txt):
             l = QLabel(f"▸ {txt}")
-            l.setFont(QFont("Courier New", 7, QFont.Weight.Bold))
-            l.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
+            l.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+            l.setStyleSheet(f"color: {{C.PRI}}; background: transparent; letter-spacing: 2px;")
             return l
 
         lay.addWidget(_sec("ACTIVITY LOG"))
@@ -1548,7 +1556,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(self._log, stretch=1)
 
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {C.BORDER}; margin: 2px 0;")
+        sep.setStyleSheet(f"color: {{C.BORDER_B}}; margin: 4px 0;")
         lay.addWidget(sep)
 
         lay.addWidget(_sec("FILE UPLOAD"))
@@ -1563,7 +1571,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(self._file_hint)
 
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet(f"color: {C.BORDER}; margin: 2px 0;")
+        sep2.setStyleSheet(f"color: {{C.BORDER_B}}; margin: 4px 0;")
         lay.addWidget(sep2)
 
         # ── CAMERA ─────────────────────────────────────────────────────────────
@@ -1584,14 +1592,14 @@ class MainWindow(QMainWindow):
         lay.addWidget(self._btn_camera)
 
         sep3 = QFrame(); sep3.setFrameShape(QFrame.Shape.HLine)
-        sep3.setStyleSheet(f"color: {C.BORDER}; margin: 2px 0;")
+        sep3.setStyleSheet(f"color: {{C.BORDER_B}}; margin: 4px 0;")
         lay.addWidget(sep3)
 
         lay.addWidget(_sec("COMMAND INPUT"))
         lay.addLayout(self._build_input_row())
 
         self._mute_btn = QPushButton("🎙  MICROPHONE ACTIVE")
-        self._mute_btn.setFixedHeight(30)
+        self._mute_btn.setFixedHeight(34)
         self._mute_btn.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
         self._mute_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._mute_btn.clicked.connect(self._toggle_mute)
@@ -1599,16 +1607,16 @@ class MainWindow(QMainWindow):
         lay.addWidget(self._mute_btn)
 
         fs_btn = QPushButton("⛶  FULLSCREEN  [F11]")
-        fs_btn.setFixedHeight(26)
+        fs_btn.setFixedHeight(28)
         fs_btn.setFont(QFont("Courier New", 7))
         fs_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         fs_btn.setStyleSheet(f"""
             QPushButton {{
-                background: transparent; color: {C.TEXT_MED};
-                border: 1px solid {C.BORDER}; border-radius: 3px;
+                background: transparent; color: {{C.TEXT_MED}};
+                border: 1px solid {{C.BORDER}}; border-radius: 4px;
             }}
             QPushButton:hover {{
-                color: {C.PRI}; border: 1px solid {C.BORDER_B};
+                color: {{C.PRI}}; border: 1px solid {{C.BORDER_B}};
             }}
         """)
         fs_btn.clicked.connect(self._toggle_fullscreen)
@@ -1621,25 +1629,27 @@ class MainWindow(QMainWindow):
         self._input = QLineEdit()
         self._input.setPlaceholderText("Type a command or question…")
         self._input.setFont(QFont("Courier New", 9))
-        self._input.setFixedHeight(30)
+        self._input.setFixedHeight(34)
         self._input.setStyleSheet(f"""
             QLineEdit {{
-                background: #000d14; color: {C.WHITE};
-                border: 1px solid {C.BORDER}; border-radius: 3px; padding: 3px 7px;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #000e18, stop:1 #00060e);
+                color: {{C.WHITE}};
+                border: 1px solid {{C.BORDER_B}}; border-radius: 5px; padding: 4px 10px;
+                selection-background-color: {{C.PRI_GHO}};
             }}
-            QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
+            QLineEdit:focus {{ border: 2px solid {{C.PRI}}; background: #001520; }}
         """)
         self._input.returnPressed.connect(self._send)
         row.addWidget(self._input)
 
         send = QPushButton("▸")
-        send.setFixedSize(30, 30)
-        send.setFont(QFont("Courier New", 11, QFont.Weight.Bold))
+        send.setFixedSize(34, 34)
+        send.setFont(QFont("Courier New", 12, QFont.Weight.Bold))
         send.setCursor(Qt.CursorShape.PointingHandCursor)
         send.setStyleSheet(f"""
             QPushButton {{
-                background: {C.PANEL}; color: {C.PRI};
-                border: 1px solid {C.PRI_DIM}; border-radius: 3px;
+                background: {{C.PANEL}}; color: {{C.PRI}};
+                border: 1px solid {{C.BORDER_B}}; border-radius: 5px;
             }}
             QPushButton:hover {{ background: {C.PRI_GHO}; border: 1px solid {C.PRI}; }}
         """)
