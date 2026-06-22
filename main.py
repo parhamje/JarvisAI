@@ -31,6 +31,7 @@ from actions.reminder          import reminder
 from actions.computer_settings import computer_settings
 from actions.screen_processor  import screen_process
 from actions.screen_vision     import analyze_screen
+from actions.python_agent      import run_python_script
 from actions.youtube_video     import youtube_video
 from actions.desktop           import desktop_control
 from actions.browser_control   import browser_control
@@ -84,6 +85,24 @@ def _clean_transcript(text: str) -> str:
     return text.strip()
 
 TOOL_DECLARATIONS = [
+    {
+        "name": "run_python_script",
+        "description": (
+            "Writes and executes arbitrary Python scripts on the user's PC to automate tasks, modify files, or do anything else. "
+            "IMPORTANT: BEFORE calling this tool, you MUST explain out loud to the user what the script will do, and you MUST explicitly ask for their verbal permission. "
+            "ONLY execute this tool if they have explicitly agreed to let you run it."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "script": {
+                    "type": "STRING",
+                    "description": "The complete, syntactically correct Python code to execute. Use the standard library or installed packages."
+                }
+            },
+            "required": ["script"]
+        }
+    },
     {
         "name": "analyze_screen",
         "description": "Takes a screenshot of the user's PC and uses an advanced Vision AI to describe what is currently visible.",
@@ -730,6 +749,10 @@ class JarvisLive:
             elif name == "analyze_screen":
                 r = await loop.run_in_executor(None, lambda: analyze_screen(parameters=args, player=self.ui))
                 result = r or "Screen analyzed."
+
+            elif name == "run_python_script":
+                r = await loop.run_in_executor(None, lambda: run_python_script(parameters=args, player=self.ui))
+                result = r or "Script executed successfully."
 
             elif name == "send_message":
                 r = await loop.run_in_executor(None, lambda: send_message(parameters=args, response=None, player=self.ui, session_memory=None))
