@@ -32,8 +32,10 @@ def analyze_webcam(parameters: dict, player=None) -> str:
         return "Error: opencv-python is not installed. Run: pip install opencv-python"
 
     try:
-        # Open default webcam (index 0)
-        cap = cv2.VideoCapture(0)
+        # Open default webcam — use DirectShow on Windows to avoid MSMF errors
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        if not cap.isOpened():
+            cap = cv2.VideoCapture(0)  # fallback
         if not cap.isOpened():
             return "Error: Could not access webcam. Make sure it is connected and not in use by another application."
 

@@ -107,7 +107,10 @@ class CameraWidget(QWidget):
     def start(self):
         try:
             import cv2
-            self._cap = cv2.VideoCapture(0)
+            # Use DirectShow backend on Windows to avoid MSMF grab errors
+            self._cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+            if not self._cap.isOpened():
+                self._cap = cv2.VideoCapture(0)  # fallback
             if not self._cap.isOpened():
                 self._status.setText("⚠  NO CAMERA FOUND")
                 return
