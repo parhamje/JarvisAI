@@ -92,6 +92,9 @@ youtube_video
   action: "play" | "summarize" | "trending" (required)
   query: string (for play)
 
+media_control
+  action: "play_pause" | "next_track" | "prev_track" | "volume_up" | "volume_down" | "volume_mute" (required)
+
 weather_report
   city: string (required)
 

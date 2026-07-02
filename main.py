@@ -35,6 +35,7 @@ from actions.webcam_vision     import analyze_webcam
 from actions.browser_agent     import browser_agent as autonomous_browser
 from actions.python_agent      import run_python_script
 from actions.youtube_video     import youtube_video
+from actions.media_control     import media_control
 from actions.desktop           import desktop_control
 from actions.browser_control   import browser_control
 from actions.file_controller   import file_controller
@@ -225,6 +226,17 @@ TOOL_DECLARATIONS = [
                 "url":    {"type": "STRING", "description": "Video URL for get_info action"},
             },
             "required": []
+        }
+    },
+    {
+        "name": "media_control",
+        "description": "Controls system media playback (Spotify, Apple Music, Browser, VLC).",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "Action to perform: play_pause, next_track, prev_track, volume_up, volume_down, volume_mute"}
+            },
+            "required": ["action"]
         }
     },
     {
@@ -805,6 +817,10 @@ class JarvisLive:
             elif name == "youtube_video":
                 r = await loop.run_in_executor(None, lambda: youtube_video(parameters=args, response=None, player=self.ui))
                 result = r or "Done."
+
+            elif name == "media_control":
+                r = await loop.run_in_executor(None, lambda: media_control(parameters=args, player=self.ui))
+                result = r or "Media command executed."
 
             elif name == "screen_process":
                 threading.Thread(
