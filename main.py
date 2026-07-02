@@ -1163,6 +1163,17 @@ def main():
         except Exception as e:
             print(f"[JARVIS] Wake word skipped: {e}")
 
+        # Start Motion Detection for Presence Wake-up
+        try:
+            from actions.motion_detector import MotionDetector
+            motion_detector = MotionDetector(on_motion_detected=_on_wake, cooldown_seconds=300)
+            motion_detector.start()
+            print("[MotionDetector] Background presence detection active.")
+        except ImportError:
+            print("[JARVIS] Motion detection skipped (OpenCV not installed).")
+        except Exception as e:
+            print(f"[JARVIS] Motion detection skipped: {e}")
+
         jarvis = JarvisLive(ui)
 
         # Start the inbound Telegram bridge once the live session is up.

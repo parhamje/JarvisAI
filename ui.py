@@ -140,13 +140,10 @@ class CameraWidget(QWidget):
     def start(self):
         try:
             import cv2
-            # Use DirectShow backend on Windows to avoid MSMF grab errors
-            self._cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-            if not self._cap.isOpened():
-                self._cap = cv2.VideoCapture(0)  # fallback
-            if not self._cap.isOpened():
-                self._status.setText("⚠  NO CAMERA FOUND")
-                return
+            from core.camera_manager import get_camera_manager
+            self._cam_manager = get_camera_manager()
+            self._cam_manager.start()
+            
             self._active = True
             self._status.setText("● LIVE")
             self._status.setStyleSheet(f"color: {C.GREEN}; background: #001a0f; border: none; border-top: 1px solid {C.BORDER_B}; letter-spacing: 2px;")
@@ -157,20 +154,21 @@ class CameraWidget(QWidget):
     def stop(self):
         self._active = False
         self._timer.stop()
-        if self._cap:
-            self._cap.release()
-            self._cap = None
+        if hasattr(self, '_cam_manager'):
+            # We don't stop the camera manager here because the motion detector might need it!
+            # self._cam_manager.stop() 
+            pass
         self._view.clear()
         self._status.setText("◈  CAMERA OFFLINE")
         self._status.setStyleSheet(f"color: {C.TEXT_DIM}; background: #000810; border: none; border-top: 1px solid {C.BORDER}; letter-spacing: 2px;")
 
     def _update_frame(self):
-        if not self._cap:
+        if not hasattr(self, '_cam_manager'):
             return
         try:
             import cv2
-            ret, frame = self._cap.read()
-            if not ret:
+            frame = self._cam_manager.get_frame()
+            if frame is None:
                 return
             # Convert BGR -> RGB
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
