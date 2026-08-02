@@ -37,6 +37,7 @@ from actions.python_agent      import run_python_script
 from actions.youtube_video     import youtube_video
 from actions.media_control     import media_control
 from actions.desktop           import desktop_control
+from actions.autonomous_computer import autonomous_computer
 from actions.browser_control   import browser_control
 from actions.file_controller   import file_controller
 from actions.code_helper       import code_helper
@@ -237,6 +238,17 @@ TOOL_DECLARATIONS = [
                 "action": {"type": "STRING", "description": "Action to perform: play_pause, next_track, prev_track, volume_up, volume_down, volume_mute"}
             },
             "required": ["action"]
+        }
+    },
+    {
+        "name": "autonomous_computer",
+        "description": "Full PC control agent. Uses computer vision to 'see' the screen and perform clicks/typing to achieve complex desktop tasks.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "task": {"type": "STRING", "description": "The goal/task for the computer agent to achieve."}
+            },
+            "required": ["task"]
         }
     },
     {
@@ -817,6 +829,10 @@ class JarvisLive:
             elif name == "youtube_video":
                 r = await loop.run_in_executor(None, lambda: youtube_video(parameters=args, response=None, player=self.ui))
                 result = r or "Done."
+
+            elif name == "autonomous_computer":
+                r = await loop.run_in_executor(None, lambda: autonomous_computer(parameters=args, player=self.ui))
+                result = r or "Computer agent finished."
 
             elif name == "media_control":
                 r = await loop.run_in_executor(None, lambda: media_control(parameters=args, player=self.ui))
