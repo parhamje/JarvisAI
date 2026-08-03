@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOIR INTERIOR STUDIO | Luxury Interior Design</title>
+  <meta name="description" content="Noir Interior Studio delivers luxury monochrome interior design tailored to you. Architectural design, curated styling, and bespoke living spaces.">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <!-- ==================== NAVIGATION BAR ==================== -->
+  <header class="navbar">
+    <div class="container nav-container">
+      <a href="#home" class="brand-logo">
+        <span class="brand-name">NOIR</span>
+        <span class="brand-subtitle">INTERIOR STUDIO</span>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#home" class="nav-link active">HOME</a>
+        <a href="#about" class="nav-link">ABOUT</a>
+        <a href="#services" class="nav-link">SERVICES</a>
+        <a href="#projects" class="nav-link">PROJECTS</a>
+        <a href="#process" class="nav-link">PROCESS</a>
+        <a href="#journal" class="nav-link">JOURNAL</a>
+        <a href="#contact" class="nav-link">CONTACT</a>
+      </nav>
+
+      <div class="nav-cta">
+        <button class="btn btn-outline open-consultation-modal">BOOK A CONSULTATION</button>
+      </div>
+
+      <button class="menu-toggle" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ==================== HERO ==================== -->
+    <section id="home" class="hero">
+      <div class="hero-bg-wrapper">
+        <img src="assets/images/hero_bg.jpg" alt="Noir Luxury Interior Design" class="hero-bg-img">
+      </div>
+      <div class="hero-overlay"></div>
+
+      <div class="container">
+        <div class="hero-content">
+          <div class="accent-line"></div>
+          <h1 class="hero-title">SPACES THAT<br>INSPIRE.</h1>
+          <p class="hero-subtitle">LUXURY INTERIOR DESIGN<br>TAILORED TO YOU.</p>
+          <a href="#projects" class="btn btn-primary">EXPLORE OUR WORK</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SERVICES ==================== -->
+    <section id="services" class="services-section">
+      <div class="container">
+        <div class="section-header-center">
+          <span class="sub-label">OUR SERVICES</span>
+          <h2 class="section-title">DESIGN. CURATE. ELEVATE.</h2>
+        </div>
+
+        <div class="services-grid">
+          <!-- Interior Design -->
+          <div class="service-card">
+            <svg class="service-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M3 9h18"/>
+              <path d="M9 21V9"/>
+            </svg>
+            <div>
+              <h3 class="service-card-title">INTERIOR DESIGN</h3>
+              <p class="service-card-desc">Full-service interior design from concept to completion.</p>
+            </div>
+            <a href="#" class="service-link">LEARN MORE &rarr;</a>
+          </div>
+
+          <!-- Furniture & Styling -->
+          <div class="service-card">
+            <svg class="service-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/>
+              <path d="M3 11v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/>
+              <path d="M5 18v2"/>
+              <path d="M19 18v2"/>
+            </svg>
+            <div>
+              <h3 class="service-card-title">FURNITURE & STYLING</h3>
+              <p class="service-card-desc">Curated furniture selections and bespoke styling.</p>
+            </div>
+            <a href="#" class="service-link">LEARN MORE &rarr;</a>
+          </div>
+
+          <!-- Lighting Design -->
+          <div class="service-card">
+            <svg class="service-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18h6"/>
+              <path d="M10 22h4"/>
+              <path d="M12 2v1"/>
+              <path d="M12 7a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.4V16H10v-1.6A4.5 4.5 0 0 1 8 11a4 4 0 0 1 4-4z"/>
+            </svg>
+            <div>
+              <h3 class="service-card-title">LIGHTING DESIGN</h3>
+              <p class="service-card-desc">Architectural and ambient lighting that transforms.</p>
+            </div>
+            <a href="#" class="service-link">LEARN MORE &rarr;</a>
+          </div>
+
+          <!-- Art & Decor Curation -->
+          <div class="service-card">
+            <svg class="service-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22c-4.97 0-9-2.69-9-6v-2c0-3.31 4.03-6 9-6s9 2.69 9 6v2c0 3.31-4.03 6-9 6z"/>
+              <ellipse cx="12" cy="8" rx="9" ry="6"/>
+            </svg>
+            <div>
+              <h3 class="service-card-title">ART & DECOR CURATION</h3>
+              <p class="service-card-desc">Thoughtfully curated art and decor for every space.</p>
+            </div>
+            <a href="#" class="service-link">LEARN MORE &rarr;</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== FEATURED PROJECTS ==================== -->
+    <section id="projects" class="projects-section">
+      <div class="container">
+        <div class="section-header-split">
+          <h2 class="section-title">FEATURED PROJECTS</h2>
+          <a href="#" class="view-all-link">VIEW ALL PROJECTS &rarr;</a>
+        </div>
+
+        <div class="projects-grid">
+          <div class="project-card" data-project="ravenwood">
+            <div class="project-img-wrapper">
+              <img src="assets/images/project_ravenwood.jpg" alt="Ravenwood Residence" class="project-img">
+            </div>
+            <h3 class="project-title">RAVENWOOD RESIDENCE</h3>
+            <p class="project-category">LUXURY RESIDENTIAL</p>
+          </div>
+
+          <div class="project-card" data-project="stratus">
+            <div class="project-img-wrapper">
+              <img src="assets/images/project_stratus.jpg" alt="Stratus Penthouse" class="project-img">
+            </div>
+            <h3 class="project-title">STRATUS PENTHOUSE</h3>
+            <p class="project-category">URBAN LIVING</p>
+          </div>
+
+          <div class="project-card" data-project="obsidian">
+            <div class="project-img-wrapper">
+              <img src="assets/images/project_obsidian.jpg" alt="Obsidian Retreat" class="project-img">
+            </div>
+            <h3 class="project-title">OBSIDIAN RETREAT</h3>
+            <p class="project-category">PRIVATE RESIDENCE</p>
+          </div>
+
+          <div class="project-card" data-project="eclipse">
+            <div class="project-img-wrapper">
+              <img src="assets/images/project_eclipse.jpg" alt="Eclipse Villa" class="project-img">
+            </div>
+            <h3 class="project-title">ECLIPSE VILLA</h3>
+            <p class="project-category">HOSPITALITY DESIGN</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== OUR STORY ==================== -->
+    <section id="about" class="story-section">
+      <div class="story-grid">
+        <div class="story-img-container">
+          <img src="assets/images/story_interior.jpg" alt="Noir Interior Studio" class="story-img">
+        </div>
+
+        <div class="story-content">
+          <span class="sub-label">OUR STORY</span>
+          <h2 class="story-title">DESIGN IS PERSONAL.<br>WE MAKE IT EXCEPTIONAL.</h2>
+
+          <p class="story-text">
+            At <strong>Noir Interior Studio</strong>, we believe that exceptional design is more than aesthetics—it's about creating spaces that reflect your story, elevate your everyday, and stand the test of time.
+          </p>
+
+          <p class="story-text">
+            With a passion for monochrome minimalism and timeless materials, we craft interiors that are bold, refined, and unmistakably you.
+          </p>
+
+          <button class="btn btn-outline open-consultation-modal" style="margin-top: 1rem;">ABOUT OUR STUDIO</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== OUR PROCESS ==================== -->
+    <section id="process" class="process-section">
+      <div class="container">
+        <div class="section-header-center">
+          <span class="sub-label">OUR PROCESS</span>
+          <h2 class="section-title">A SEAMLESS JOURNEY TO EXTRAORDINARY SPACES.</h2>
+        </div>
+
+        <div class="process-timeline">
+          <!-- 01 -->
+          <div class="process-step">
+            <div class="step-icon-wrapper">
+              <svg class="step-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <h3 class="step-number-title">01. CONSULT</h3>
+            <p class="step-desc">We begin with a conversation to understand your vision, needs, and lifestyle.</p>
+          </div>
+
+          <!-- 02 -->
+          <div class="process-step">
+            <div class="step-icon-wrapper">
+              <svg class="step-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+            </div>
+            <h3 class="step-number-title">02. CONCEPT</h3>
+            <p class="step-desc">Our team develops tailored concepts that reflect your style and goals.</p>
+          </div>
+
+          <!-- 03 -->
+          <div class="process-step">
+            <div class="step-icon-wrapper">
+              <svg class="step-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+              </svg>
+            </div>
+            <h3 class="step-number-title">03. DESIGN</h3>
+            <p class="step-desc">We create detailed plans, material palettes, and bespoke solutions.</p>
+          </div>
+
+          <!-- 04 -->
+          <div class="process-step">
+            <div class="step-icon-wrapper">
+              <svg class="step-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/>
+                <path d="M3 11v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/>
+              </svg>
+            </div>
+            <h3 class="step-number-title">04. EXECUTE</h3>
+            <p class="step-desc">From sourcing to installation, we manage every detail with precision.</p>
+          </div>
+
+          <!-- 05 -->
+          <div class="process-step">
+            <div class="step-icon-wrapper">
+              <svg class="step-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+            <h3 class="step-number-title">05. DELIVER</h3>
+            <p class="step-desc">We reveal your space, perfected to inspire and designed to last.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== KIND WORDS ==================== -->
+    <section class="testimonials-section">
+      <div class="container">
+        <div class="section-header-center">
+          <span class="sub-label">KIND WORDS</span>
+          <h2 class="section-title">OUR CLIENTS SAY IT BEST.</h2>
+        </div>
+
+        <div class="testimonial-carousel">
+          <button class="carousel-btn carousel-btn-prev" id="prevTestimonial" aria-label="Previous testimonial">&#8592;</button>
+
+          <div class="testimonial-track-wrapper">
+            <div class="testimonial-track" id="testimonialTrack">
+              <!-- 1 -->
+              <div class="testimonial-card">
+                <div class="testimonial-inner">
+                  <div class="quote-icon">&ldquo;</div>
+                  <p class="testimonial-text">
+                    Noir Interior Studio transformed our home into a masterpiece. Every detail was thoughtfully curated and perfectly executed.
+                  </p>
+                  <div>
+                    <h4 class="testimonial-author">&mdash; JESSICA M.</h4>
+                    <p class="testimonial-project">RAVENWOOD RESIDENCE</p>
+                  </div>
+                </div>
+              </div>
+              <!-- 2 -->
+              <div class="testimonial-card">
+                <div class="testimonial-inner">
+                  <div class="quote-icon">&ldquo;</div>
+                  <p class="testimonial-text">
+                    Their creativity, professionalism, and attention to detail are unmatched. We couldn't be happier with the results.
+                  </p>
+                  <div>
+                    <h4 class="testimonial-author">&mdash; DAVID L.</h4>
+                    <p class="testimonial-project">STRATUS PENTHOUSE</p>
+                  </div>
+                </div>
+              </div>
+              <!-- 3 -->
+              <div class="testimonial-card">
+                <div class="testimonial-inner">
+                  <div class="quote-icon">&ldquo;</div>
+                  <p class="testimonial-text">
+                    A seamless experience from start to finish. Our space is not only stunning but also a true reflection of us.
+                  </p>
+                  <div>
+                    <h4 class="testimonial-author">&mdash; SOPHIA R.</h4>
+                    <p class="testimonial-project">OBSIDIAN RETREAT</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button class="carousel-btn carousel-btn-next" id="nextTestimonial" aria-label="Next testimonial">&#8594;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== CTA BANNER ==================== -->
+    <section class="cta-banner-section">
+      <div class="container cta-banner-container">
+        <div class="cta-left-decor">
+          <img src="assets/images/cta_banner.jpg" alt="Ceramic vase detail">
+        </div>
+
+        <div class="cta-banner-content">
+          <h2 class="cta-title">READY TO ELEVATE YOUR SPACE?</h2>
+          <p class="cta-subtitle">BOOK A CONSULTATION WITH OUR DESIGN EXPERTS TODAY.</p>
+          <button class="btn btn-dark open-consultation-modal">BOOK A CONSULTATION</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================== FOOTER ==================== -->
+  <footer id="contact" class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <!-- Brand -->
+        <div class="footer-brand">
+          <a href="#home" class="brand-logo">
+            <span class="brand-name">NOIR</span>
+            <span class="brand-subtitle">INTERIOR STUDIO</span>
+          </a>
+          <p class="footer-tagline">
+            Timeless design. Thoughtful spaces.<br>Elevated living.
+          </p>
+          <div class="social-links">
+            <a href="#" class="social-icon" aria-label="Instagram"><i data-lucide="instagram"></i></a>
+            <a href="#" class="social-icon" aria-label="Pinterest"><i data-lucide="pin"></i></a>
+            <a href="#" class="social-icon" aria-label="Twitter"><i data-lucide="twitter"></i></a>
+            <a href="#" class="social-icon" aria-label="LinkedIn"><i data-lucide="linkedin"></i></a>
+          </div>
+        </div>
+
+        <!-- Quick Links -->
+        <div>
+          <h4 class="footer-col-title">QUICK LINKS</h4>
+          <ul class="footer-links">
+            <li><a href="#home" class="footer-link">HOME</a></li>
+            <li><a href="#about" class="footer-link">ABOUT</a></li>
+            <li><a href="#services" class="footer-link">SERVICES</a></li>
+            <li><a href="#projects" class="footer-link">PROJECTS</a></li>
+            <li><a href="#process" class="footer-link">PROCESS</a></li>
+            <li><a href="#journal" class="footer-link">JOURNAL</a></li>
+            <li><a href="#contact" class="footer-link">CONTACT</a></li>
+          </ul>
+        </div>
+
+        <!-- Services -->
+        <div>
+          <h4 class="footer-col-title">SERVICES</h4>
+          <ul class="footer-links">
+            <li><a href="#services" class="footer-link">INTERIOR DESIGN</a></li>
+            <li><a href="#services" class="footer-link">FURNITURE & STYLING</a></li>
+            <li><a href="#services" class="footer-link">LIGHTING DESIGN</a></li>
+            <li><a href="#services" class="footer-link">ART & DECOR CURATION</a></li>
+          </ul>
+        </div>
+
+        <!-- Contact -->
+        <div>
+          <h4 class="footer-col-title">CONTACT</h4>
+          <div class="contact-list">
+            <div class="contact-item">
+              <i data-lucide="mail" class="contact-icon"></i>
+              <span>hello@noirstudio.com</span>
+            </div>
+            <div class="contact-item">
+              <i data-lucide="phone" class="contact-icon"></i>
+              <span>+1 (212) 555-0188</span>
+            </div>
+            <div class="contact-item">
+              <i data-lucide="map-pin" class="contact-icon"></i>
+              <span>123 Design Lane, Suite 500<br>New York, NY 10001</span>
+            </div>
+          </div>
+          <button class="btn btn-outline open-consultation-modal" style="width: 100%;">BOOK A CONSULTATION</button>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>&copy; 2024 NOIR INTERIOR STUDIO. ALL RIGHTS RESERVED.</p>
+        <div class="footer-legal-links">
+          <a href="#" class="footer-link">PRIVACY POLICY</a>
+          <span>|</span>
+          <a href="#" class="footer-link">TERMS & CONDITIONS</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==================== CONSULTATION MODAL ==================== -->
+  <div class="modal-backdrop" id="consultationModal">
+    <div class="modal-container">
+      <button class="modal-close" id="closeModalBtn" aria-label="Close">&times;</button>
+      <h2 class="modal-title">BOOK A CONSULTATION</h2>
+      <p class="modal-subtitle">LET'S DISCUSS YOUR DESIGN VISION</p>
+
+      <form id="consultationForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="fullName">FULL NAME</label>
+            <input type="text" id="fullName" class="form-control" placeholder="Jane Doe" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="email">EMAIL ADDRESS</label>
+            <input type="email" id="email" class="form-control" placeholder="jane@example.com" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="phone">PHONE NUMBER</label>
+            <input type="tel" id="phone" class="form-control" placeholder="+1 (555) 000-0000">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="projectType">PROJECT TYPE</label>
+            <select id="projectType" class="form-control" required>
+              <option value="">SELECT PROJECT TYPE</option>
+              <option value="residential">LUXURY RESIDENTIAL</option>
+              <option value="urban">URBAN PENTHOUSE</option>
+              <option value="hospitality">HOSPITALITY DESIGN</option>
+              <option value="styling">FURNITURE & STYLING</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="notes">PROJECT DETAILS / VISION</label>
+          <textarea id="notes" class="form-control" rows="4" placeholder="Tell us about your space, timeline, and vision..."></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.8rem;">SUBMIT REQUEST</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== PROJECT LIGHTBOX ==================== -->
+  <div class="lightbox-backdrop" id="projectLightbox">
+    <div class="lightbox-content">
+      <div class="lightbox-img-wrapper">
+        <img src="" id="lightboxImg" alt="Project detail preview">
+      </div>
+      <div class="lightbox-info">
+        <span class="sub-label" id="lightboxCategory">CATEGORY</span>
+        <h3 class="section-title" id="lightboxTitle" style="font-size: 1.6rem; margin-bottom: 1rem;">PROJECT TITLE</h3>
+        <p id="lightboxDesc" style="color: var(--text-secondary); line-height: 1.7; margin-bottom: 1.5rem; font-size: 0.88rem;"></p>
+        <button class="btn btn-outline" id="closeLightboxBtn">CLOSE PREVIEW</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

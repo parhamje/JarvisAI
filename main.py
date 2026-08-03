@@ -1154,9 +1154,49 @@ class JarvisLive:
             await asyncio.sleep(3)
 
 def main():
-    ui = JarvisUI("face.png")
+    import asyncio
+    from core.server import get_server
 
-    def runner():
+    class ServerUI:
+        def __init__(self):
+            self.muted = True
+            self.on_text_command = None
+            self._loop = None
+
+        def _broadcast(self, msg_type, payload):
+            srv = get_server()
+            if srv and srv.clients and self._loop:
+                asyncio.run_coroutine_threadsafe(srv.broadcast(msg_type, payload), self._loop)
+
+        def wait_for_api_key(self):
+            pass
+
+        def write_log(self, text):
+            print(f"[UI Log] {text}")
+            self._broadcast("LOG", {"text": text})
+
+        def set_state(self, state):
+            self._broadcast("STATE", {"state": state})
+
+        def set_status(self, text):
+            self._broadcast("STATUS", {"text": text})
+
+        def set_ai_core_active(self, active):
+            self._broadcast("AI_CORE", {"active": active})
+
+        def set_speaking(self, speaking):
+            self._broadcast("SPEAKING", {"speaking": speaking})
+
+        def get_audio_level(self):
+            return 0.0
+
+        def get_mute_state(self):
+            return self.muted
+
+    ui = ServerUI()
+
+    async def amain():
+        ui._loop = asyncio.get_running_loop()
         ui.wait_for_api_key()
 
         # Sync existing JSON memory into ChromaDB vector store
@@ -1166,7 +1206,6 @@ def main():
         except Exception as e:
             print(f"[JARVIS] Memory sync skipped: {e}")
 
-        # Start wake word listener — say 'Hey Jarvis' to unmute
         def _on_wake():
             if ui.muted:
                 ui.muted = False
@@ -1174,6 +1213,7 @@ def main():
                 ui.write_log("SYS: Wake word detected — Jarvis activated.")
             else:
                 print("[WakeWord] Already active.")
+
         try:
             start_wake_word(on_wake=_on_wake)
         except Exception as e:
@@ -1186,13 +1226,27 @@ def main():
             motion_detector.start()
             print("[MotionDetector] Background presence detection active.")
         except ImportError:
-            print("[JARVIS] Motion detection skipped (OpenCV not installed).")
+            pass
         except Exception as e:
             print(f"[JARVIS] Motion detection skipped: {e}")
 
         jarvis = JarvisLive(ui)
+        
+        # hook server callback to Jarvis text input
+        srv = get_server()
+        async def on_ws_message(msg_type, payload):
+            if msg_type == "TEXT_COMMAND" and jarvis:
+                text = payload.get("text", "")
+                if text:
+                    ui.muted = False
+                    await jarvis.send_text(text)
+            elif msg_type == "MUTE_TOGGLE":
+                ui.muted = not ui.muted
+                print(f"[Server] Muted state: {ui.muted}")
+                
+        srv.set_callback(on_ws_message)
 
-        # Start the inbound Telegram bridge once the live session is up.
+        # Start the inbound Telegram bridge
         def _start_bridge():
             import time as _t
             from actions.telegram_bridge import TelegramBridge
@@ -1204,18 +1258,21 @@ def main():
                 jarvis.tg_bridge = TelegramBridge(jarvis)
                 jarvis.tg_bridge.start()
             except Exception as e:
-                print(f"[JARVIS] Telegram bridge skipped: {e}")
+                pass
         threading.Thread(target=_start_bridge, daemon=True).start()
 
-        try:
-            asyncio.run(jarvis.run())
-        except KeyboardInterrupt:
-            print("\n[JARVIS] Shutting down...")
-        finally:
-            stop_wake_word()
+        # Run both server and jarvis concurrently
+        await asyncio.gather(
+            srv.start(),
+            jarvis.run()
+        )
 
-    threading.Thread(target=runner, daemon=True).start()
-    ui.root.mainloop()
+    try:
+        asyncio.run(amain())
+    except KeyboardInterrupt:
+        print("\n[JARVIS] Shutting down...")
+    finally:
+        stop_wake_word()
 
 if __name__ == "__main__":
     main()
