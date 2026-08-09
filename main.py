@@ -1190,6 +1190,23 @@ def main():
         except Exception as e:
             print(f"[JARVIS] Motion detection skipped: {e}")
 
+        # Start A2A Worker Agents
+        try:
+            from agent.workers.dev_worker import DevWorkerAgent
+            from agent.workers.browser_worker import BrowserWorkerAgent
+            from agent.workers.computer_worker import ComputerWorkerAgent
+            
+            dev_worker = DevWorkerAgent()
+            browser_worker = BrowserWorkerAgent()
+            computer_worker = ComputerWorkerAgent()
+            
+            dev_worker.start()
+            browser_worker.start()
+            computer_worker.start()
+            print("[A2A] Multi-Agent workers initialized and active.")
+        except Exception as e:
+            print(f"[A2A] Worker initialization skipped: {e}")
+
         jarvis = JarvisLive(ui)
 
         # Start the inbound Telegram bridge once the live session is up.
