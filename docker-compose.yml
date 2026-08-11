@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  jarvis:
+    build: .
+    container_name: jarvis_247
+    restart: always
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./config:/app/config
+      - ./jarvis.session:/app/jarvis.session
+      - ./brain:/app/brain
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DISPLAY=:99

@@ -1,0 +1,8 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+jarvis-ui/node_modules
+jarvis-ui/dist
+.DS_Store
