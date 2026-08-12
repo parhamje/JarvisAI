@@ -250,10 +250,18 @@ async def clock_loop():
             print(f"[VPS Relay] Clock update: {e}")
         await asyncio.sleep(60)
 
+# Global State
+connected_pc = None
+tg_client = None
+is_afk = False
+afk_reason = "Busy / Away from phone"
+afk_start_time = None
+afk_notified_chats = set()
+
 # ── Main Telegram Listener ───────────────────────────────────────────────────
 
 async def start_telegram_listener():
-    global tg_client, is_afk, afk_reason, afk_start_time
+    global tg_client, is_afk, afk_reason, afk_start_time, afk_notified_chats
     if not api_id or not api_hash:
         print("[VPS Relay] Error: api_id / api_hash missing")
         return
@@ -264,32 +272,54 @@ async def start_telegram_listener():
 
     asyncio.create_task(clock_loop())
 
-    # ── AFK Auto-Responder for Incoming PV Messages ──────────────────────────
+    # ── AFK Auto-Responder for Incoming PV Messages (Strict 1-Time per User) ────
     @tg_client.on(events.NewMessage(incoming=True))
     async def afk_handler(event):
-        global is_afk, afk_reason, afk_start_time
+        global is_afk, afk_notified_chats
         if is_afk and event.is_private and not event.out:
             sender = await event.get_sender()
             if sender and not getattr(sender, "bot", False):
-                elapsed = ""
-                if afk_start_time:
-                    mins = int((time.time() - afk_start_time) // 60)
-                    elapsed = f" ({mins}m ago)"
-                await event.reply(
-                    f"🌙 **PARHAM is currently Away / AFK{elapsed}**\n"
-                    f"📌 **Reason:** _{afk_reason}_\n"
-                    f"⚡ *Jarvis AI will notify him as soon as he returns.*"
-                )
+                chat_id = event.chat_id
+                # Send auto-reply ONLY ONCE per contact during AFK session
+                if chat_id not in afk_notified_chats:
+                    afk_notified_chats.add(chat_id)
+                    await event.reply("سلام جارویس هستم پرهام فعلا افلاینه پیامتو بهش میرسونم.")
 
     # ── Outgoing Self-Bot Commands Handler ───────────────────────────────────
     @tg_client.on(events.NewMessage(outgoing=True))
     async def handler(event):
-        global is_afk, afk_reason, afk_start_time
+        global is_afk, afk_reason, afk_start_time, afk_notified_chats
         raw_text = (event.raw_text or "").strip()
         if not raw_text:
             return
 
         lower = raw_text.lower()
+
+        # 0. Help Guide Command (.help / jarvis help / جارویس راهنما / راهنما)
+        if lower in (".help", "jarvis help", "جارویس راهنما", "راهنما", "help"):
+            help_text = (
+                "🤖 **راهنمای کامل ربات سلف JARVIS AI** 🤖\n"
+                "───────────────────────────\n\n"
+                "🌙 **حالت افلاین (AFK):**\n"
+                "▫️ `جارویس افک` یا `.afk` ➔ فعال‌سازی حالت غیرفعال (پاسخ ۱ بار برای هر مخاطب)\n"
+                "▫️ `جارویس انلاین` یا `.notafk` ➔ خروج از حالت افلاین\n\n"
+                "🎙️ **تولید ویس صوتی:**\n"
+                "▫️ `جارویس ویس <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n\n"
+                "🔍 **جستجوی زنده وب:**\n"
+                "▫️ `جارویس سرچ <متن>` ➔ سرچ زنده در وب و خلاصه اخبار\n\n"
+                "🌐 **ترجمه زنده:**\n"
+                "▫️ `جارویس ترجمه` (روی پیام) ➔ ترجمه فوری به انگلیسی/فارسی\n\n"
+                "📊 **وضعیت سیستم و پینگ:**\n"
+                "▫️ `جارویس وضعیت` یا `.ping` ➔ داشبورد رم سرور، پینگ و اتصال PC\n"
+                "▫️ `جارویس اسپیدتست` یا `.speedtest` ➔ تست سرعت اینترنت VPS\n\n"
+                "🧹 **مدیریت و ابزارها:**\n"
+                "▫️ `جارویس پاک کن <تعداد>` یا `.purge <n>` ➔ پاکسازی پیام‌های اخیر شما\n"
+                "▫️ `جارویس ذخیره` یا `.save` ➔ ارسال پیام به Saved Messages\n\n"
+                "🤖 **پاسخ هوشمند AI:**\n"
+                "▫️ ارسال پیام با `جارویس` / `حارویس` ➔ پاسخ هوشمند انیمیشنی زنده"
+            )
+            await event.edit(help_text)
+            return
 
         # 1. AFK Commands
         if lower.startswith(".afk") or lower.startswith("jarvis afk") or lower.startswith("جارویس افک"):
@@ -297,13 +327,15 @@ async def start_telegram_listener():
             is_afk = True
             afk_reason = reason
             afk_start_time = time.time()
-            await event.edit(f"🌙 **AFK Mode Activated!**\n📌 Reason: _{afk_reason}_")
+            afk_notified_chats.clear()  # Reset notified list for new AFK session
+            await event.edit(f"🌙 **حالت افلاین فعال شد!**\n📌 پیام خودکار برای مخاطبین فعال است.")
             return
 
         if lower.startswith(".notafk") or lower.startswith("jarvis back") or lower.startswith("جارویس انلاین"):
             if is_afk:
                 is_afk = False
-                await event.edit("☀️ **Welcome back, sir! AFK Mode Deactivated.**")
+                afk_notified_chats.clear()
+                await event.edit("☀️ **حالت افلاین خاموش شد. خوش آمدید!**")
             return
 
         # 2. Ping & Status Command (.ping / jarvis status / جارویس وضعیت)
