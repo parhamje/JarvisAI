@@ -19,16 +19,15 @@ pip install -r requirements_docker.txt
 
 echo "[Jarvis VPS] Creating 24/7 Systemd Background Service..."
 CURRENT_DIR=$(pwd)
-CURRENT_USER=$(whoami)
 
-sudo tee /etc/systemd/system/jarvis.service > /dev/null <<EOF
+cat <<EOF > /etc/systemd/system/jarvis.service
 [Unit]
 Description=Jarvis AI Assistant 24/7 Service
 After=network.target
 
 [Service]
 Type=simple
-User=${CURRENT_USER}
+User=root
 WorkingDirectory=${CURRENT_DIR}
 ExecStart=/bin/bash -c "Xvfb :99 -screen 0 1280x1024x24 & DISPLAY=:99 ${CURRENT_DIR}/.venv/bin/python main.py"
 Restart=always
@@ -40,8 +39,8 @@ WantedBy=multi-user.target
 EOF
 
 echo "[Jarvis VPS] Enabling and starting Jarvis service..."
-sudo systemctl daemon-reload
-sudo systemctl enable --now jarvis
+systemctl daemon-reload
+systemctl enable --now jarvis
 
 echo "=================================================================="
 echo "[OK] Jarvis is now running 24/7 on your VPS!"
