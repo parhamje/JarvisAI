@@ -89,6 +89,9 @@ class TelegramBridge:
             # Start the dynamic profile clock loop on the Telegram event loop
             asyncio.create_task(self._clock_loop(base_name))
 
+            # Start VPS Gateway Connector loop if vps_ip is configured
+            asyncio.create_task(self._vps_gateway_loop())
+
             client.add_event_handler(
                 self._on_new_message,
                 events.NewMessage(outgoing=True, incoming=False),
@@ -122,6 +125,47 @@ class TelegramBridge:
                 command = rest.lstrip(" \t,:،.!?-")
                 return command
         return None
+
+    async def _vps_gateway_loop(self):
+        import json
+        import websockets
+        from actions.dev_agent import _get_api_key
+
+        # Load VPS IP from config
+        try:
+            from actions.dev_agent import API_CONFIG_PATH
+            if API_CONFIG_PATH.exists():
+                with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                    vps_ip = cfg.get("vps_ip", "31.58.50.41")
+            else:
+                vps_ip = "31.58.50.41"
+        except Exception:
+            vps_ip = "31.58.50.41"
+
+        ws_url = f"ws://{vps_ip}:8765"
+        print(f"[TGBridge] Connecting to VPS Gateway at {ws_url}...")
+
+        while True:
+            try:
+                async with websockets.connect(ws_url) as ws:
+                    print(f"[TGBridge] ✅ Connected to 24/7 VPS Gateway at {vps_ip}!")
+                    async for msg_str in ws:
+                        try:
+                            data = json.loads(msg_str)
+                            if data.get("type") == "TELEGRAM_REMOTE_CMD":
+                                payload = data.get("payload", {})
+                                cmd = payload.get("cmd", "")
+                                if cmd and self._player:
+                                    print(f"[TGBridge] 📩 Remote VPS Command Received: '{cmd}'")
+                                    # Inject into local Jarvis live session
+                                    if hasattr(self._player, "_on_text_command"):
+                                        self._player._on_text_command(cmd)
+                        except Exception as inner_e:
+                            print(f"[TGBridge] Error handling VPS message: {inner_e}")
+            except Exception as e:
+                # Silently retry connection every 10s if VPS connection drops
+                await asyncio.sleep(10)
 
     # ── background clock loop ───────────────────────────────────────────────────
 
