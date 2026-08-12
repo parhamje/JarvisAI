@@ -295,8 +295,8 @@ async def start_telegram_listener():
 
         lower = raw_text.lower()
 
-        # 0. Help Guide Command (.help / jarvis help / جارویس راهنما / راهنما)
-        if lower in (".help", "jarvis help", "جارویس راهنما", "راهنما", "help"):
+        # 0. Help Guide Command (.help / jarvis help / جارویس راهنما / راهنما جارویس / راهنما)
+        if lower in (".help", "jarvis help", "جارویس راهنما", "راهنما جارویس", "راهنمای جارویس", "راهنما", "help"):
             help_text = (
                 "🤖 **راهنمای کامل ربات سلف JARVIS AI** 🤖\n"
                 "───────────────────────────\n\n"
