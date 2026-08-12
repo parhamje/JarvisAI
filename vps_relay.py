@@ -226,28 +226,34 @@ async def start_telegram_listener():
 
     @tg_client.on(events.NewMessage(outgoing=True))
     async def handler(event):
-        text = (event.raw_text or "").strip()
-        if not text:
+        raw_text = (event.raw_text or "").strip()
+        if not raw_text:
             return
             
-        lower_text = text.lower()
+        lower_text = raw_text.lower()
         matched_trigger = None
         for t in TRIGGERS:
-            if lower_text.startswith(t):
+            if t in lower_text:
                 matched_trigger = t
                 break
                 
         if not matched_trigger:
             return
 
-        cmd = text[len(matched_trigger):].strip()
+        # Extract command or default to "سلام" if only trigger is typed
+        idx = lower_text.find(matched_trigger)
+        cmd = raw_text[idx + len(matched_trigger):].strip()
         if not cmd:
-            return
+            cmd = "سلام"
 
-        print(f"[VPS Relay] Remote Command: {cmd!r}")
+        print(f"[VPS Relay] Self-Bot Triggered: '{raw_text}' -> Command: '{cmd}'")
 
         if connected_pc:
             # Forward command to local PC
+            try:
+                await event.edit(f"{raw_text}\n\n⚡ *JARVIS (Relaying to PC...)*", parse_mode="markdown")
+            except Exception:
+                pass
             await connected_pc.send(json.dumps({
                 "type": "TELEGRAM_REMOTE_CMD",
                 "payload": {
@@ -258,10 +264,20 @@ async def start_telegram_listener():
             }))
             print("[VPS Relay] Forwarded to local PC.")
         else:
-            # Standalone VPS AI Response (When PC is offline)
-            print("[VPS Relay] PC is offline. Generating standalone Gemini AI reply on VPS...")
+            # Standalone VPS AI Response (Self-Bot In-Place Editing)
+            try:
+                await event.edit(f"{raw_text}\n\n🧠 *thinking...*", parse_mode="markdown")
+            except Exception:
+                pass
+                
+            print("[VPS Relay] PC is offline. Generating standalone AI reply on VPS...")
             ai_reply = await generate_vps_ai_reply(cmd)
-            await event.reply(ai_reply)
+
+            # Edit message in-place with final AI answer
+            try:
+                await event.edit(f"{raw_text}\n\n🤖 **J.A.R.V.I.S:**\n{ai_reply}", parse_mode="markdown")
+            except Exception:
+                await event.edit(f"{raw_text}\n\n🤖 J.A.R.V.I.S:\n{ai_reply}")
 
     await tg_client.run_until_disconnected()
 
