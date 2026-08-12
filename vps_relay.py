@@ -33,28 +33,38 @@ api_hash = keys.get("telegram_api_hash")
 async def ws_handler(websocket, path=None):
     global connected_pc
     connected_pc = websocket
-    print("[VPS Relay] Local PC connected to VPS Gateway!")
+    print("[VPS Relay] ✅ Local PC connected to VPS Gateway!")
     try:
         async for message in websocket:
-            # Receive results from local PC and forward back if needed
             data = json.loads(message)
-            print(f"[VPS Relay] Result from PC: {data.get('type')}")
+            msg_type = data.get("type")
+            print(f"[VPS Relay] Message from PC: {msg_type}")
+            if msg_type == "TELEGRAM_REPLY" and tg_client:
+                payload = data.get("payload", {})
+                chat_id = payload.get("chat_id")
+                reply_text = payload.get("text", "")
+                if chat_id and reply_text:
+                    await tg_client.send_message(chat_id, reply_text)
+                    print(f"[VPS Relay] Sent reply to Telegram chat {chat_id}")
     except websockets.exceptions.ConnectionClosed:
         print("[VPS Relay] Local PC disconnected.")
     finally:
         if connected_pc == websocket:
             connected_pc = None
 
+tg_client = None
+
 async def start_telegram_listener():
+    global tg_client
     if not api_id or not api_hash:
         print("[VPS Relay] Error: telegram_api_id / api_hash missing in config/api_keys.json")
         return
 
-    client = TelegramClient(str(SESSION_PATH), api_id, api_hash)
-    await client.start()
+    tg_client = TelegramClient(str(SESSION_PATH), api_id, api_hash)
+    await tg_client.start()
     print("[VPS Relay] 24/7 Telegram Userbot active on VPS!")
 
-    @client.on(events.NewMessage(outgoing=True))
+    @tg_client.on(events.NewMessage(outgoing=True))
     async def handler(event):
         text = (event.raw_text or "").strip()
         if not text:
@@ -90,7 +100,7 @@ async def start_telegram_listener():
         else:
             await event.reply("⚠️ Your local PC Jarvis is currently offline, sir.")
 
-    await client.run_until_disconnected()
+    await tg_client.run_until_disconnected()
 
 async def main():
     server = await websockets.serve(ws_handler, "0.0.0.0", 8765)
