@@ -1,8 +1,10 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
-# Prevent interactive prompts
+# Prevent interactive prompts & force IPv4 for apt downloads
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
+
+RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
 
 # Install minimal essential dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
