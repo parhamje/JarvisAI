@@ -95,6 +95,34 @@ async def clock_loop():
             print(f"[VPS Relay] Clock update: {e}")
         await asyncio.sleep(60)
 
+GAPGPT_KEY = "sk-b4fdrNkj3xxH020rdt5OAVmOCty3rukoO6ZfMMtjQLtVXF87"
+GAPGPT_URL = "https://api.gapgpt.app/v1/chat/completions"
+GAPGPT_MODEL = "gapgpt-qwen-3.6-thinking"
+
+def _gapgpt_generate(prompt: str) -> str:
+    import requests
+    headers = {
+        "Authorization": f"Bearer {GAPGPT_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": GAPGPT_MODEL,
+        "messages": [
+            {
+                "role": "system", 
+                "content": "You are J.A.R.V.I.S., a highly intelligent, polite, futuristic AI assistant created by Parham. Respond concisely and helpfully in English or Persian based on user input language."
+            },
+            {"role": "user", "content": prompt}
+        ]
+    }
+    res = requests.post(GAPGPT_URL, headers=headers, json=payload, timeout=25)
+    res.raise_for_status()
+    data = res.json()
+    choices = data.get("choices", [])
+    if choices and "message" in choices[0]:
+        return choices[0]["message"].get("content", "").strip()
+    raise ValueError("Invalid GapGPT response structure")
+
 openrouter_key = keys.get("openrouter_api_key")
 
 def _openrouter_generate(prompt: str) -> str:
@@ -106,13 +134,13 @@ def _openrouter_generate(prompt: str) -> str:
         "Content-Type": "application/json",
     }
     
-    # openrouter/free automatically routes to currently active free models
     free_models = [
+        "openai/gpt-oss-20b:free",
+        "nvidia/nemotron-3.5-lightning:free",
+        "liquid/lfm-2.5-2.6b:free",
         "openrouter/free",
-        "google/gemma-2-9b-it:free",
         "meta-llama/llama-3.3-70b-instruct:free",
-        "deepseek/deepseek-r1:free",
-        "qwen/qwen-2.5-72b-instruct:free"
+        "deepseek/deepseek-r1:free"
     ]
     
     last_err = None
@@ -143,16 +171,32 @@ def _openrouter_generate(prompt: str) -> str:
     raise last_err or Exception("All free OpenRouter models failed")
 
 async def generate_vps_ai_reply(prompt: str) -> str:
-    """Generate AI response when local PC is offline, with OpenRouter fallback for regional IP blocks"""
+    """Generate AI response using GapGPT -> OpenRouter -> Gemini"""
     loop = asyncio.get_running_loop()
-    system_instruction = (
-        "You are J.A.R.V.I.S., a highly intelligent, polite, futuristic AI assistant created by Parham. "
-        "Respond concisely and helpfully in English or Persian based on the user's input language."
-    )
     
-    # Try direct Gemini first
+    # 1. Try GapGPT (Ultra fast Iranian AI gateway, no geo-restrictions)
+    try:
+        reply = await loop.run_in_executor(None, _gapgpt_generate, prompt)
+        if reply:
+            return reply
+    except Exception as e1:
+        print(f"[VPS Relay] GapGPT failed ({e1}). Trying OpenRouter...")
+
+    # 2. Try OpenRouter Free Models
+    try:
+        reply = await loop.run_in_executor(None, _openrouter_generate, prompt)
+        if reply:
+            return reply
+    except Exception as e2:
+        print(f"[VPS Relay] OpenRouter failed ({e2}). Trying direct Gemini...")
+
+    # 3. Direct Gemini Fallback
     if ai_client:
         try:
+            system_instruction = (
+                "You are J.A.R.V.I.S., a highly intelligent, polite, futuristic AI assistant created by Parham. "
+                "Respond concisely and helpfully in English or Persian based on the user's input language."
+            )
             response = await loop.run_in_executor(
                 None,
                 lambda: ai_client.models.generate_content(
@@ -162,16 +206,10 @@ async def generate_vps_ai_reply(prompt: str) -> str:
                 )
             )
             return response.text
-        except Exception as e:
-            print(f"[VPS Relay] Gemini Direct failed ({e}). Falling back to OpenRouter...")
+        except Exception as e3:
+            print(f"[VPS Relay] Direct Gemini failed ({e3}).")
 
-    # Fallback to OpenRouter (No region restrictions on VPS)
-    try:
-        reply = await loop.run_in_executor(None, _openrouter_generate, prompt)
-        return reply
-    except Exception as er:
-        print(f"[VPS Relay] OpenRouter failed: {er}")
-        return f"Sir, both direct Gemini and OpenRouter failed: {er}"
+    return "Sir, all AI engines (GapGPT, OpenRouter, Gemini) were unreachable."
 
 async def start_telegram_listener():
     global tg_client
