@@ -95,27 +95,61 @@ async def clock_loop():
             print(f"[VPS Relay] Clock update: {e}")
         await asyncio.sleep(60)
 
+openrouter_key = keys.get("openrouter_api_key")
+
+def _openrouter_generate(prompt: str) -> str:
+    import requests
+    if not openrouter_key:
+        raise ValueError("OpenRouter API key missing")
+    headers = {
+        "Authorization": f"Bearer {openrouter_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "google/gemini-2.5-flash",
+        "messages": [
+            {
+                "role": "system", 
+                "content": "You are J.A.R.V.I.S., a highly intelligent, polite, futuristic AI assistant created by Parham. Respond concisely and helpfully in English or Persian based on user input language."
+            },
+            {"role": "user", "content": prompt}
+        ]
+    }
+    res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=20)
+    res.raise_for_status()
+    data = res.json()
+    return data["choices"][0]["message"]["content"].strip()
+
 async def generate_vps_ai_reply(prompt: str) -> str:
-    """Generate Gemini AI response when local PC is offline"""
-    if not ai_client:
-        return "I am Jarvis AI. My local PC host is currently offline, sir."
-    try:
-        loop = asyncio.get_running_loop()
-        system_instruction = (
-            "You are J.A.R.V.I.S., a highly intelligent, polite, futuristic AI assistant created by Parham. "
-            "Respond concisely and helpfully in English or Persian based on the user's input language."
-        )
-        response = await loop.run_in_executor(
-            None,
-            lambda: ai_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config={"system_instruction": system_instruction}
+    """Generate AI response when local PC is offline, with OpenRouter fallback for regional IP blocks"""
+    loop = asyncio.get_running_loop()
+    system_instruction = (
+        "You are J.A.R.V.I.S., a highly intelligent, polite, futuristic AI assistant created by Parham. "
+        "Respond concisely and helpfully in English or Persian based on the user's input language."
+    )
+    
+    # Try direct Gemini first
+    if ai_client:
+        try:
+            response = await loop.run_in_executor(
+                None,
+                lambda: ai_client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt,
+                    config={"system_instruction": system_instruction}
+                )
             )
-        )
-        return response.text
-    except Exception as e:
-        return f"Error processing AI request on VPS: {e}"
+            return response.text
+        except Exception as e:
+            print(f"[VPS Relay] Gemini Direct failed ({e}). Falling back to OpenRouter...")
+
+    # Fallback to OpenRouter (No region restrictions on VPS)
+    try:
+        reply = await loop.run_in_executor(None, _openrouter_generate, prompt)
+        return reply
+    except Exception as er:
+        print(f"[VPS Relay] OpenRouter failed: {er}")
+        return f"Sir, both direct Gemini and OpenRouter failed: {er}"
 
 async def start_telegram_listener():
     global tg_client
