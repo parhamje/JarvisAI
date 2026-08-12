@@ -29,7 +29,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=${CURRENT_DIR}
-ExecStart=/bin/bash -c "Xvfb :99 -screen 0 1280x1024x24 & DISPLAY=:99 ${CURRENT_DIR}/.venv/bin/python main.py"
+ExecStart=${CURRENT_DIR}/.venv/bin/python vps_relay.py
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
