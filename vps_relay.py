@@ -106,11 +106,13 @@ def _openrouter_generate(prompt: str) -> str:
         "Content-Type": "application/json",
     }
     
-    # Try free Gemini model on OpenRouter first, fallback to Llama 3.3 70b free
+    # openrouter/free automatically routes to currently active free models
     free_models = [
-        "google/gemini-2.5-flash:free",
+        "openrouter/free",
+        "google/gemma-2-9b-it:free",
         "meta-llama/llama-3.3-70b-instruct:free",
-        "deepseek/deepseek-r1:free"
+        "deepseek/deepseek-r1:free",
+        "qwen/qwen-2.5-72b-instruct:free"
     ]
     
     last_err = None
@@ -126,10 +128,14 @@ def _openrouter_generate(prompt: str) -> str:
                     {"role": "user", "content": prompt}
                 ]
             }
-            res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=20)
+            res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=25)
             res.raise_for_status()
             data = res.json()
-            return data["choices"][0]["message"]["content"].strip()
+            choices = data.get("choices", [])
+            if choices and "message" in choices[0]:
+                content = choices[0]["message"].get("content", "").strip()
+                if content:
+                    return content
         except Exception as e:
             last_err = e
             continue
