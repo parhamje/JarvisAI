@@ -44,7 +44,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now jarvis
 
 echo "=================================================================="
-echo "✅ Jarvis is now running 24/7 on your VPS!"
+echo "[OK] Jarvis is now running 24/7 on your VPS!"
 echo "Check live logs: sudo journalctl -u jarvis -f"
 echo "Check status:    sudo systemctl status jarvis"
 echo "Restart service: sudo systemctl restart jarvis"
