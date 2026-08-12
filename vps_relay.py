@@ -105,20 +105,36 @@ def _openrouter_generate(prompt: str) -> str:
         "Authorization": f"Bearer {openrouter_key}",
         "Content-Type": "application/json",
     }
-    payload = {
-        "model": "google/gemini-2.5-flash",
-        "messages": [
-            {
-                "role": "system", 
-                "content": "You are J.A.R.V.I.S., a highly intelligent, polite, futuristic AI assistant created by Parham. Respond concisely and helpfully in English or Persian based on user input language."
-            },
-            {"role": "user", "content": prompt}
-        ]
-    }
-    res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=20)
-    res.raise_for_status()
-    data = res.json()
-    return data["choices"][0]["message"]["content"].strip()
+    
+    # Try free Gemini model on OpenRouter first, fallback to Llama 3.3 70b free
+    free_models = [
+        "google/gemini-2.5-flash:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-r1:free"
+    ]
+    
+    last_err = None
+    for model_name in free_models:
+        try:
+            payload = {
+                "model": model_name,
+                "messages": [
+                    {
+                        "role": "system", 
+                        "content": "You are J.A.R.V.I.S., a highly intelligent, polite, futuristic AI assistant created by Parham. Respond concisely and helpfully in English or Persian based on user input language."
+                    },
+                    {"role": "user", "content": prompt}
+                ]
+            }
+            res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=20)
+            res.raise_for_status()
+            data = res.json()
+            return data["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            last_err = e
+            continue
+
+    raise last_err or Exception("All free OpenRouter models failed")
 
 async def generate_vps_ai_reply(prompt: str) -> str:
     """Generate AI response when local PC is offline, with OpenRouter fallback for regional IP blocks"""
