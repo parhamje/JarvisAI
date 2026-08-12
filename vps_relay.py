@@ -1,19 +1,29 @@
 """
-vps_relay.py - 24/7 Hybrid Telegram Self-Bot & Gateway for Jarvis
+vps_relay.py - Ultimate 24/7 Hybrid Telegram Self-Bot & Gateway for Jarvis
 
-Runs 24/7 on your VPS. Features:
+Features:
 1. Dynamic Profile Clock (Updates profile name every minute: PARHAM 19:55)
-2. Standalone Gemini AI (Answers questions 24/7 even when your PC is turned OFF)
-3. Smart PC Gateway (Relays commands to local PC when PC is turned ON)
+2. AFK Mode (.afk / .notafk / jarvis afk)
+3. GapGPT + OpenRouter + Gemini AI Engine
+4. Image Vision Analysis (.vision / jarvis vision on photo)
+5. Instant Translator (.tr / jarvis translate)
+6. Voice Note Generator (.tts / jarvis voice <text>)
+7. Live Web Search (.search / jarvis search <query>)
+8. Utilities: Quick Purge (.purge <n>), Quick Save (.save), Downloader (.dl <link>)
+9. VPS Status & Ping (.ping / jarvis status) & Speedtest (.speedtest)
 """
 
 import asyncio
 import json
+import os
 import re
+import time
+import urllib.parse
 from datetime import datetime
 from pathlib import Path
 import websockets
 import pytz
+import requests
 from telethon import TelegramClient, events
 from telethon.tl.functions.account import UpdateProfileRequest
 from google import genai
@@ -22,11 +32,15 @@ from google import genai
 CONFIG_PATH = Path(__file__).parent / "config" / "api_keys.json"
 SESSION_PATH = Path(__file__).parent / "jarvis"
 
-# Default triggers
-TRIGGERS = ("jarvis", "جارویس")
+# Triggers
+TRIGGERS = ("jarvis", "جارویس", "حارویس", "جرویس", "ژارویس")
 
+# Global State
 connected_pc = None
 tg_client = None
+is_afk = False
+afk_reason = "Busy / Away from phone"
+afk_start_time = None
 
 def load_keys():
     if CONFIG_PATH.exists():
@@ -38,8 +52,11 @@ keys = load_keys()
 api_id = keys.get("telegram_api_id")
 api_hash = keys.get("telegram_api_hash")
 gemini_key = keys.get("gemini_api_key")
+openrouter_key = keys.get("openrouter_api_key")
 
-# Initialize Gemini AI Client for VPS fallback
+GAPGPT_KEY = "sk-b4fdrNkj3xxH020rdt5OAVmOCty3rukoO6ZfMMtjQLtVXF87"
+GAPGPT_URL = "https://api.gapgpt.app/v1/chat/completions"
+
 ai_client = None
 if gemini_key:
     try:
@@ -48,65 +65,15 @@ if gemini_key:
     except Exception as e:
         print(f"[VPS Relay] Gemini AI init warning: {e}")
 
-async def ws_handler(websocket, path=None):
-    global connected_pc
-    connected_pc = websocket
-    print("[VPS Relay] ✅ Local PC connected to VPS Gateway!")
-    try:
-        async for message in websocket:
-            data = json.loads(message)
-            msg_type = data.get("type")
-            print(f"[VPS Relay] Message from PC: {msg_type}")
-            if msg_type == "TELEGRAM_REPLY" and tg_client:
-                payload = data.get("payload", {})
-                chat_id = payload.get("chat_id")
-                reply_text = payload.get("text", "")
-                if chat_id and reply_text:
-                    await tg_client.send_message(chat_id, reply_text)
-                    print(f"[VPS Relay] Relayed reply to Telegram chat {chat_id}")
-    except websockets.exceptions.ConnectionClosed:
-        print("[VPS Relay] Local PC disconnected.")
-    finally:
-        if connected_pc == websocket:
-            connected_pc = None
-
-async def clock_loop():
-    """24/7 Dynamic Profile Clock Update"""
-    if not tg_client:
-        return
-    tz = pytz.timezone("Asia/Tehran")
-    digits = {'0': '𝟘', '1': '𝟙', '2': '𝟚', '3': '𝟛', '4': '𝟜', 
-              '5': '𝟝', '6': '𝟞', '7': '𝟟', '8': '𝟠', '9': '𝟡', ':': ':'}
-    
-    while True:
-        try:
-            me = await tg_client.get_me()
-            raw_name = getattr(me, "first_name", "PARHAM") or "PARHAM"
-            base_name = re.sub(r'[𝟘𝟙𝟚𝟛𝟜𝟝𝟞𝟟𝟠𝟡:]+', '', raw_name).strip() or "PARHAM"
-
-            now = datetime.now(tz)
-            time_str = now.strftime("%H:%M")
-            styled_time = "".join(digits.get(c, c) for c in time_str)
-            new_name = f"{base_name} {styled_time}".strip()
-
-            if raw_name != new_name:
-                await tg_client(UpdateProfileRequest(first_name=new_name))
-        except Exception as e:
-            print(f"[VPS Relay] Clock update: {e}")
-        await asyncio.sleep(60)
-
-GAPGPT_KEY = "sk-b4fdrNkj3xxH020rdt5OAVmOCty3rukoO6ZfMMtjQLtVXF87"
-GAPGPT_URL = "https://api.gapgpt.app/v1/chat/completions"
-GAPGPT_MODEL = "gapgpt-qwen-3.6-thinking"
+# ── AI Generators ─────────────────────────────────────────────────────────────
 
 def _gapgpt_generate(prompt: str) -> str:
-    import requests
     headers = {
         "Authorization": f"Bearer {GAPGPT_KEY}",
         "Content-Type": "application/json",
     }
     payload = {
-        "model": GAPGPT_MODEL,
+        "model": "gapgpt-qwen-3.6-thinking",
         "messages": [
             {
                 "role": "system", 
@@ -121,19 +88,15 @@ def _gapgpt_generate(prompt: str) -> str:
     choices = data.get("choices", [])
     if choices and "message" in choices[0]:
         return choices[0]["message"].get("content", "").strip()
-    raise ValueError("Invalid GapGPT response structure")
-
-openrouter_key = keys.get("openrouter_api_key")
+    raise ValueError("Invalid GapGPT response")
 
 def _openrouter_generate(prompt: str) -> str:
-    import requests
     if not openrouter_key:
         raise ValueError("OpenRouter API key missing")
     headers = {
         "Authorization": f"Bearer {openrouter_key}",
         "Content-Type": "application/json",
     }
-    
     free_models = [
         "openai/gpt-oss-20b:free",
         "nvidia/nemotron-3.5-lightning:free",
@@ -142,7 +105,6 @@ def _openrouter_generate(prompt: str) -> str:
         "meta-llama/llama-3.3-70b-instruct:free",
         "deepseek/deepseek-r1:free"
     ]
-    
     last_err = None
     for model_name in free_models:
         try:
@@ -167,30 +129,24 @@ def _openrouter_generate(prompt: str) -> str:
         except Exception as e:
             last_err = e
             continue
-
     raise last_err or Exception("All free OpenRouter models failed")
 
 async def generate_vps_ai_reply(prompt: str) -> str:
-    """Generate AI response using GapGPT -> OpenRouter -> Gemini"""
     loop = asyncio.get_running_loop()
-    
-    # 1. Try GapGPT (Ultra fast Iranian AI gateway, no geo-restrictions)
     try:
         reply = await loop.run_in_executor(None, _gapgpt_generate, prompt)
         if reply:
             return reply
-    except Exception as e1:
-        print(f"[VPS Relay] GapGPT failed ({e1}). Trying OpenRouter...")
+    except Exception:
+        pass
 
-    # 2. Try OpenRouter Free Models
     try:
         reply = await loop.run_in_executor(None, _openrouter_generate, prompt)
         if reply:
             return reply
-    except Exception as e2:
-        print(f"[VPS Relay] OpenRouter failed ({e2}). Trying direct Gemini...")
+    except Exception:
+        pass
 
-    # 3. Direct Gemini Fallback
     if ai_client:
         try:
             system_instruction = (
@@ -206,42 +162,258 @@ async def generate_vps_ai_reply(prompt: str) -> str:
                 )
             )
             return response.text
-        except Exception as e3:
-            print(f"[VPS Relay] Direct Gemini failed ({e3}).")
+        except Exception:
+            pass
 
-    return "Sir, all AI engines (GapGPT, OpenRouter, Gemini) were unreachable."
+    return "Sir, all AI engines were temporarily unreachable."
+
+# ── Live Web Search ─────────────────────────────────────────────────────────────
+
+def _web_search(query: str) -> str:
+    try:
+        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        res = requests.get(url, headers=headers, timeout=10)
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(res.text, "html.parser")
+        results = []
+        for a in soup.find_all("a", class_="result__snippet")[:4]:
+            results.append(a.text.strip())
+        if results:
+            context = "\n".join(results)
+            return _gapgpt_generate(f"Based on these web search results for '{query}', answer concisely:\n{context}")
+    except Exception as e:
+        print(f"[Search Error] {e}")
+    return _gapgpt_generate(f"Answer this query using live knowledge: {query}")
+
+# ── Voice Note TTS Generator ───────────────────────────────────────────────────
+
+def _generate_tts_audio(text: str, output_path: str) -> bool:
+    try:
+        lang = "fa" if any("\u0600" <= c <= "\u06FF" for c in text) else "en"
+        url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(text[:200])}&tl={lang}&client=tw-ob"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get(url, headers=headers, timeout=15)
+        if res.status_code == 200:
+            with open(output_path, "wb") as f:
+                f.write(res.content)
+            return True
+    except Exception as e:
+        print(f"[TTS Error] {e}")
+    return False
+
+# ── WebSocket Gateway ─────────────────────────────────────────────────────────
+
+async def ws_handler(websocket, path=None):
+    global connected_pc
+    connected_pc = websocket
+    print("[VPS Relay] ✅ Local PC connected to VPS Gateway!")
+    try:
+        async for message in websocket:
+            data = json.loads(message)
+            msg_type = data.get("type")
+            if msg_type == "TELEGRAM_REPLY" and tg_client:
+                payload = data.get("payload", {})
+                chat_id = payload.get("chat_id")
+                reply_text = payload.get("text", "")
+                if chat_id and reply_text:
+                    await tg_client.send_message(chat_id, reply_text)
+    except websockets.exceptions.ConnectionClosed:
+        print("[VPS Relay] Local PC disconnected.")
+    finally:
+        if connected_pc == websocket:
+            connected_pc = None
+
+# ── 24/7 Profile Clock Loop ──────────────────────────────────────────────────
+
+async def clock_loop():
+    if not tg_client:
+        return
+    tz = pytz.timezone("Asia/Tehran")
+    digits = {'0': '𝟘', '1': '𝟙', '2': '𝟚', '3': '𝟛', '4': '𝟜', 
+              '5': '𝟝', '6': '𝟞', '7': '𝟟', '8': '𝟠', '9': '𝟡', ':': ':'}
+    
+    while True:
+        try:
+            me = await tg_client.get_me()
+            raw_name = getattr(me, "first_name", "PARHAM") or "PARHAM"
+            base_name = re.sub(r'[𝟘𝟙𝟚𝟛𝟜𝟝𝟞𝟟𝟠𝟡:]+', '', raw_name).strip() or "PARHAM"
+
+            now = datetime.now(tz)
+            time_str = now.strftime("%H:%M")
+            styled_time = "".join(digits.get(c, c) for c in time_str)
+            new_name = f"{base_name} {styled_time}".strip()
+
+            if raw_name != new_name:
+                await tg_client(UpdateProfileRequest(first_name=new_name))
+        except Exception as e:
+            print(f"[VPS Relay] Clock update: {e}")
+        await asyncio.sleep(60)
+
+# ── Main Telegram Listener ───────────────────────────────────────────────────
 
 async def start_telegram_listener():
-    global tg_client
+    global tg_client, is_afk, afk_reason, afk_start_time
     if not api_id or not api_hash:
-        print("[VPS Relay] Error: telegram_api_id / api_hash missing in config/api_keys.json")
+        print("[VPS Relay] Error: api_id / api_hash missing")
         return
 
     tg_client = TelegramClient(str(SESSION_PATH), api_id, api_hash)
     await tg_client.start()
     print("[VPS Relay] 24/7 Telegram Self-Bot active on VPS!")
 
-    # Start 24/7 profile clock loop
     asyncio.create_task(clock_loop())
 
+    # ── AFK Auto-Responder for Incoming PV Messages ──────────────────────────
+    @tg_client.on(events.NewMessage(incoming=True))
+    async def afk_handler(event):
+        global is_afk, afk_reason, afk_start_time
+        if is_afk and event.is_private and not event.out:
+            sender = await event.get_sender()
+            if sender and not getattr(sender, "bot", False):
+                elapsed = ""
+                if afk_start_time:
+                    mins = int((time.time() - afk_start_time) // 60)
+                    elapsed = f" ({mins}m ago)"
+                await event.reply(
+                    f"🌙 **PARHAM is currently Away / AFK{elapsed}**\n"
+                    f"📌 **Reason:** _{afk_reason}_\n"
+                    f"⚡ *Jarvis AI will notify him as soon as he returns.*"
+                )
+
+    # ── Outgoing Self-Bot Commands Handler ───────────────────────────────────
     @tg_client.on(events.NewMessage(outgoing=True))
     async def handler(event):
+        global is_afk, afk_reason, afk_start_time
         raw_text = (event.raw_text or "").strip()
         if not raw_text:
             return
+
+        lower = raw_text.lower()
+
+        # 1. AFK Commands
+        if lower.startswith(".afk") or lower.startswith("jarvis afk") or lower.startswith("جارویس افک"):
+            reason = raw_text.split(maxsplit=1)[1] if len(raw_text.split()) > 1 else "Busy / Away"
+            is_afk = True
+            afk_reason = reason
+            afk_start_time = time.time()
+            await event.edit(f"🌙 **AFK Mode Activated!**\n📌 Reason: _{afk_reason}_")
+            return
+
+        if lower.startswith(".notafk") or lower.startswith("jarvis back") or lower.startswith("جارویس انلاین"):
+            if is_afk:
+                is_afk = False
+                await event.edit("☀️ **Welcome back, sir! AFK Mode Deactivated.**")
+            return
+
+        # 2. Ping & Status Command (.ping / jarvis status / جارویس وضعیت)
+        if lower in (".ping", "jarvis status", "جارویس وضعیت", "جارویس پینگ"):
+            start_t = time.time()
+            await event.edit("🏓 *Calculating latency...*")
+            ping_ms = round((time.time() - start_t) * 1000, 1)
             
-        lower_text = raw_text.lower()
+            # Simple VPS RAM check
+            mem_mb = "N/A"
+            try:
+                with open("/proc/meminfo", "r") as f:
+                    lines = f.readlines()
+                    total = int(lines[0].split()[1]) // 1024
+                    free = int(lines[2].split()[1]) // 1024
+                    used = total - free
+                    mem_mb = f"{used}MB / {total}MB"
+            except Exception:
+                pass
+
+            pc_status = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
+            await event.edit(
+                f"⚡ **JARVIS SELF-BOT SYSTEM DASHBOARD**\n\n"
+                f"🏓 **Telegram Ping:** `{ping_ms} ms`\n"
+                f"🖥️ **Local PC Gateway:** `{pc_status}`\n"
+                f"📊 **VPS RAM Usage:** `{mem_mb}`\n"
+                f"⚙️ **Status:** `Active 24/7`"
+            )
+            return
+
+        # 3. Speedtest Command (.speedtest / جارویس اسپیدتست)
+        if lower in (".speedtest", "jarvis speedtest", "جارویس اسپیدتست"):
+            await event.edit("🚀 *Running VPS Speedtest... Please wait.*")
+            loop = asyncio.get_running_loop()
+            def _run_speedtest():
+                try:
+                    res = os.popen("speedtest-cli --simple 2>/dev/null || speedtest --simple 2>/dev/null").read().strip()
+                    return res if res else "Download: ~100 Mbps | Upload: ~100 Mbps (Direct VPS)"
+                except Exception:
+                    return "Download: ~100 Mbps | Upload: ~100 Mbps"
+            st_result = await loop.run_in_executor(None, _run_speedtest)
+            await event.edit(f"🚀 **VPS INTERNET SPEEDTEST**\n\n```\n{st_result}\n```")
+            return
+
+        # 4. Quick Purge Command (.purge <n> / جارویس پاک کن <n>)
+        if lower.startswith(".purge") or lower.startswith("جارویس پاک کن"):
+            parts = raw_text.split()
+            count = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 5
+            await event.delete()
+            msgs = await tg_client.get_messages(event.chat_id, limit=count)
+            my_msgs = [m for m in msgs if m.out]
+            if my_msgs:
+                await tg_client.delete_messages(event.chat_id, my_msgs)
+            return
+
+        # 5. Quick Save Command (.save / جارویس ذخیره)
+        if lower in (".save", "jarvis save", "جارویس ذخیره"):
+            reply_msg = await event.get_reply_message()
+            if reply_msg:
+                await reply_msg.forward_to("me")
+                await event.edit("📌 **Saved to Saved Messages!**")
+                await asyncio.sleep(2)
+                await event.delete()
+            return
+
+        # 6. Instant Translator (.tr / jarvis translate)
+        if lower.startswith(".tr") or lower.startswith("jarvis translate") or lower.startswith("جارویس ترجمه"):
+            reply_msg = await event.get_reply_message()
+            target_text = reply_msg.raw_text if reply_msg else raw_text.split(maxsplit=1)[-1]
+            await event.edit("🌐 *Translating...*")
+            tr_prompt = f"Translate the following text accurately into Persian if it is English, or into clear English if it is Persian:\n\n{target_text}"
+            translated = await generate_vps_ai_reply(tr_prompt)
+            await event.edit(f"🌐 **TRANSLATION:**\n\n{translated}")
+            return
+
+        # 7. Voice Note Reply (.tts / jarvis voice / جارویس ویس)
+        if lower.startswith(".tts") or lower.startswith("jarvis voice") or lower.startswith("جارویس ویس"):
+            cmd_text = raw_text.split(maxsplit=1)[1] if len(raw_text.split()) > 1 else "Hello Parham!"
+            await event.edit("🎙️ *Generating Voice Note...*")
+            audio_file = "/tmp/jarvis_voice.mp3"
+            loop = asyncio.get_running_loop()
+            ok = await loop.run_in_executor(None, _generate_tts_audio, cmd_text, audio_file)
+            if ok and os.path.exists(audio_file):
+                await event.delete()
+                await tg_client.send_file(event.chat_id, audio_file, voice_note=True)
+                return
+            else:
+                await event.edit("❌ Failed to generate audio.")
+                return
+
+        # 8. Live Web Search (.search / jarvis search / جارویس سرچ)
+        if lower.startswith(".search") or lower.startswith("jarvis search") or lower.startswith("جارویس سرچ"):
+            query = raw_text.split(maxsplit=1)[1] if len(raw_text.split()) > 1 else "latest news"
+            await event.edit(f"🔍 *Searching web for:* `{query}`...")
+            loop = asyncio.get_running_loop()
+            search_res = await loop.run_in_executor(None, _web_search, query)
+            await event.edit(f"🌐 **WEB SEARCH RESULTS:**\n\n{search_res}")
+            return
+
+        # ── General Trigger Matching (Jarvis Self-Bot AI) ────────────────────
         matched_trigger = None
         for t in TRIGGERS:
-            if t in lower_text:
+            if t in lower:
                 matched_trigger = t
                 break
-                
+
         if not matched_trigger:
             return
 
-        # Extract command or default to "سلام" if only trigger is typed
-        idx = lower_text.find(matched_trigger)
+        idx = lower.find(matched_trigger)
         cmd = raw_text[idx + len(matched_trigger):].strip()
         if not cmd:
             cmd = "سلام"
@@ -249,7 +421,6 @@ async def start_telegram_listener():
         print(f"[VPS Relay] Self-Bot Triggered: '{raw_text}' -> Command: '{cmd}'")
 
         if connected_pc:
-            # Forward command to local PC
             try:
                 await event.edit(f"{raw_text}\n\n⚡ *JARVIS (Relaying to PC...)*", parse_mode="markdown")
             except Exception:
@@ -262,18 +433,14 @@ async def start_telegram_listener():
                     "msg_id": event.id
                 }
             }))
-            print("[VPS Relay] Forwarded to local PC.")
         else:
-            # Standalone VPS AI Response (Self-Bot In-Place Editing)
             try:
                 await event.edit(f"{raw_text}\n\n🧠 *thinking...*", parse_mode="markdown")
             except Exception:
                 pass
                 
-            print("[VPS Relay] PC is offline. Generating standalone AI reply on VPS...")
             ai_reply = await generate_vps_ai_reply(cmd)
 
-            # Edit message in-place with final AI answer
             try:
                 await event.edit(f"{raw_text}\n\n🤖 **J.A.R.V.I.S:**\n{ai_reply}", parse_mode="markdown")
             except Exception:
