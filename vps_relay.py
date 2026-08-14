@@ -435,6 +435,80 @@ async def start_telegram_listener():
             await event.edit(f"🌐 **WEB SEARCH RESULTS:**\n\n{search_res}")
             return
 
+        # 9. Animated Typewriter Effect (.type <text> / جارویس تایپ کن <متن>)
+        if lower.startswith(".type") or lower.startswith("جارویس تایپ کن"):
+            target_text = raw_text.split(maxsplit=2 if lower.startswith("جارویس تایپ کن") else 1)[-1]
+            typed_so_far = ""
+            for char in target_text:
+                typed_so_far += char
+                try:
+                    await event.edit(f"{typed_so_far}▌")
+                    await asyncio.sleep(0.1)
+                except Exception:
+                    pass
+            try:
+                await event.edit(typed_so_far)
+            except Exception:
+                pass
+            return
+
+        # 10. Forward Without Quote (.nocontext / جارویس فوروارد بدون نام)
+        if lower.startswith(".nocontext") or lower.startswith("جارویس فوروارد بدون نام"):
+            reply_msg = await event.get_reply_message()
+            if reply_msg:
+                await event.delete()
+                await tg_client.send_message(event.chat_id, reply_msg)
+            return
+
+        # 11. User Profile Info (.whois / جارویس کیست)
+        if lower.startswith(".whois") or lower.startswith("جارویس کیست"):
+            reply_msg = await event.get_reply_message()
+            target_user = None
+            if reply_msg:
+                target_user = await reply_msg.get_sender()
+            else:
+                target_user = await event.get_sender()
+            
+            if target_user:
+                first_n = getattr(target_user, "first_name", "") or "N/A"
+                last_n = getattr(target_user, "last_name", "") or ""
+                uname = f"@{target_user.username}" if getattr(target_user, "username", None) else "None"
+                uid = target_user.id
+                is_bot = "Yes 🤖" if getattr(target_user, "bot", False) else "No 👤"
+                
+                info_card = (
+                    f"👤 **USER INFORMATION CARD**\n"
+                    f"────────────────────\n"
+                    f"🔹 **Name:** `{first_n} {last_n}`.strip()\n"
+                    f"🔹 **Username:** {uname}\n"
+                    f"🔹 **User ID:** `{uid}`\n"
+                    f"🔹 **Bot Status:** {is_bot}\n"
+                    f"⚡ *Extracted by Jarvis AI*"
+                )
+                await event.edit(info_card)
+            return
+
+        # 12. Quick Photo to Sticker (.sticker / جارویس استیکر)
+        if lower.startswith(".sticker") or lower.startswith("جارویس استیکر"):
+            reply_msg = await event.get_reply_message()
+            if reply_msg and reply_msg.media:
+                await event.edit("🖼️ *Converting photo to sticker...*")
+                photo_path = await reply_msg.download_media(file="/tmp/temp_sticker.png")
+                if photo_path:
+                    try:
+                        from PIL import Image
+                        im = Image.open(photo_path)
+                        webp_path = "/tmp/sticker.webp"
+                        im.save(webp_path, "WEBP")
+                        await event.delete()
+                        await tg_client.send_file(event.chat_id, webp_path)
+                        return
+                    except Exception as st_e:
+                        await event.edit(f"❌ Sticker conversion error: {st_e}")
+                        return
+            await event.edit("⚠️ Please reply to a photo to convert it to a sticker.")
+            return
+
         # ── General Trigger Matching (Jarvis Self-Bot AI) ────────────────────
         matched_trigger = None
         for t in TRIGGERS:
