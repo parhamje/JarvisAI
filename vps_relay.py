@@ -188,6 +188,37 @@ def _web_search(query: str) -> str:
 
 # ── Reminder Engine ───────────────────────────────────────────────────────────
 
+def _get_countdown_str(target_year: int, target_month: int, target_day: int) -> str:
+    try:
+        now = datetime.now(pytz.utc)
+        target = datetime(target_year, target_month, target_day, 0, 0, 0, tzinfo=pytz.utc)
+        diff = target - now
+        if diff.total_seconds() <= 0:
+            return "```\n  00  :  00  :  00  :  00  :  00\nMONTHS  DAYS   HOURS  MINUTES SECONDS\n```\n🎉 RELEASED!"
+        
+        total_days = diff.days
+        months = total_days // 30
+        days = total_days % 30
+        hours = diff.seconds // 3600
+        mins = (diff.seconds % 3600) // 60
+        secs = diff.seconds % 60
+        
+        m_s = f"{months:02d}"
+        d_s = f"{days:02d}"
+        h_s = f"{hours:02d}"
+        mi_s = f"{mins:02d}"
+        s_s = f"{secs:02d}"
+
+        board = (
+            f"```\n"
+            f"  {m_s}  :  {d_s}  :  {h_s}  :  {mi_s}  :  {s_s}\n"
+            f"MONTHS  DAYS   HOURS  MINUTES SECONDS\n"
+            f"```"
+        )
+        return board
+    except Exception:
+        return "```\n  00  :  00  :  00  :  00  :  00\nMONTHS  DAYS   HOURS  MINUTES SECONDS\n```"
+
 reminders = []
 
 def parse_time_str(time_str: str) -> int:
@@ -405,37 +436,6 @@ async def start_telegram_listener():
             )
             await event.edit(panel_card)
             return
-
-def _get_countdown_str(target_year: int, target_month: int, target_day: int) -> str:
-    try:
-        now = datetime.now(pytz.utc)
-        target = datetime(target_year, target_month, target_day, 0, 0, 0, tzinfo=pytz.utc)
-        diff = target - now
-        if diff.total_seconds() <= 0:
-            return "```\n  00  :  00  :  00  :  00  :  00\nMONTHS  DAYS   HOURS  MINUTES SECONDS\n```\n🎉 RELEASED!"
-        
-        total_days = diff.days
-        months = total_days // 30
-        days = total_days % 30
-        hours = diff.seconds // 3600
-        mins = (diff.seconds % 3600) // 60
-        secs = diff.seconds % 60
-        
-        m_s = f"{months:02d}"
-        d_s = f"{days:02d}"
-        h_s = f"{hours:02d}"
-        mi_s = f"{mins:02d}"
-        s_s = f"{secs:02d}"
-
-        board = (
-            f"```\n"
-            f"  {m_s}  :  {d_s}  :  {h_s}  :  {mi_s}  :  {s_s}\n"
-            f"MONTHS  DAYS   HOURS  MINUTES SECONDS\n"
-            f"```"
-        )
-        return board
-    except Exception:
-        return "```\n  00  :  00  :  00  :  00  :  00\nMONTHS  DAYS   HOURS  MINUTES SECONDS\n```"
 
         # 0c. Avengers: Doomsday Creative Command (jarvis doomsday / جارویس دومزدی / پروتکل دومزدی)
         if "doomsday" in lower or "دومزدی" in lower:
