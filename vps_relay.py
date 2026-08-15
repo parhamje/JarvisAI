@@ -17,6 +17,7 @@ import asyncio
 import json
 import os
 import re
+import tempfile
 import time
 import urllib.parse
 from datetime import datetime
@@ -29,8 +30,9 @@ from telethon.tl.functions.account import UpdateProfileRequest
 from google import genai
 
 # Configuration
-CONFIG_PATH = Path(__file__).parent / "config" / "api_keys.json"
-SESSION_PATH = Path(__file__).parent / "jarvis"
+BASE_DIR = Path(__file__).parent
+CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
+SESSION_PATH = BASE_DIR / "jarvis"
 
 # Triggers
 TRIGGERS = ("jarvis", "جارویس", "حارویس", "جرویس", "ژارویس")
