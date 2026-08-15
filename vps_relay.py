@@ -331,10 +331,33 @@ afk_reason = "Busy / Away from phone"
 afk_start_time = None
 afk_notified_chats = set()
 
+# Allowed Users Persistence
+ALLOWED_USERS_FILE = BASE_DIR / "config" / "allowed_users.json"
+
+def load_allowed_users() -> set:
+    try:
+        if ALLOWED_USERS_FILE.exists():
+            with open(ALLOWED_USERS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return set(int(x) for x in data if str(x).isdigit())
+    except Exception as e:
+        print(f"[VPS Relay] Error loading allowed users: {e}")
+    return set()
+
+def save_allowed_users(users: set):
+    try:
+        ALLOWED_USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(ALLOWED_USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(list(users), f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[VPS Relay] Error saving allowed users: {e}")
+
+allowed_users = load_allowed_users()
+
 # ── Main Telegram Listener ───────────────────────────────────────────────────
 
 async def start_telegram_listener():
-    global tg_client, is_afk, afk_reason, afk_start_time, afk_notified_chats
+    global tg_client, is_afk, afk_reason, afk_start_time, afk_notified_chats, allowed_users
     if not api_id or not api_hash:
         print("[VPS Relay] Error: api_id / api_hash missing")
         return
@@ -382,15 +405,72 @@ async def start_telegram_listener():
         else:
             await event.edit("ℹ️ **بخش مربوطه فعال است.**", buttons=back_btn)
 
-    # ── AFK Auto-Responder for Incoming PV Messages (Strict 1-Time per User) ────
+    # ── Allowed Users & AFK Incoming Protocol ────────────────────────────────
     @tg_client.on(events.NewMessage(incoming=True))
-    async def afk_handler(event):
-        global is_afk, afk_notified_chats
+    async def incoming_handler(event):
+        global is_afk, afk_notified_chats, allowed_users
+        sender_id = event.sender_id
+        if not sender_id:
+            return
+
+        # 1. Check if sender is in Allowed Users list AND explicitly used a Jarvis trigger command
+        if sender_id in allowed_users or str(sender_id) in allowed_users:
+            raw = (event.raw_text or "").strip()
+            lower = raw.lower()
+            
+            # Check trigger: starts with "جارویس", "jarvis", ".ai" or replies to owner message with "جارویس"
+            is_trigger = lower.startswith("جارویس") or lower.startswith("jarvis") or lower.startswith(".ai")
+            
+            if is_trigger:
+                prompt = raw
+                for kw in ("جارویس", "jarvis", ".ai"):
+                    if lower.startswith(kw):
+                        prompt = raw[len(kw):].strip()
+                        break
+                
+                if not prompt:
+                    prompt = "سلام"
+
+                reply_msg = await event.reply("🧠 *در حال پردازش پاسخ هوشمند...*")
+                
+                # Check voice note input
+                if event.voice or event.audio:
+                    try:
+                        voice_file = await event.download_media(file=tempfile.NamedTemporaryFile(suffix=".ogg", delete=False).name)
+                        stt_text = transcribe_audio(voice_file)
+                        if voice_file and os.path.exists(voice_file):
+                            os.remove(voice_file)
+                        if stt_text:
+                            prompt = stt_text
+                    except Exception:
+                        pass
+
+                ai_response = await generate_vps_ai_reply(prompt)
+                
+                # Reply back with voice note if input was voice note, else text
+                if (event.voice or event.audio) and gTTS:
+                    try:
+                        mp3_path = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False).name
+                        tts = gTTS(text=ai_response, lang='fa')
+                        tts.save(mp3_path)
+                        ogg_path = tempfile.NamedTemporaryFile(suffix=".ogg", delete=False).name
+                        os.system(f'ffmpeg -y -i "{mp3_path}" -c:a libopus "{ogg_path}" >/dev/null 2>&1')
+                        await reply_msg.delete()
+                        await tg_client.send_file(event.chat_id, ogg_path, voice_note=True, reply_to=event.id)
+                        if os.path.exists(mp3_path): os.remove(mp3_path)
+                        if os.path.exists(ogg_path): os.remove(ogg_path)
+                        return
+                    except Exception:
+                        pass
+
+                await reply_msg.edit(ai_response)
+                return
+
+        # 2. AFK Auto-Responder logic (Strict 1-Time per contact)
         if is_afk and event.is_private and not event.out:
             sender = await event.get_sender()
             if sender and not getattr(sender, "bot", False):
                 chat_id = event.chat_id
-                # Send auto-reply ONLY ONCE per contact during AFK session
                 if chat_id not in afk_notified_chats:
                     afk_notified_chats.add(chat_id)
                     await event.reply("سلام جارویس هستم پرهام فعلا افلاینه پیامتو بهش میرسونم.")
@@ -564,8 +644,54 @@ async def start_telegram_listener():
             asyncio.create_task(gta_ticker())
             return
 
-        # 1. AFK Commands
-        if lower.startswith(".afk") or lower.startswith("jarvis afk") or lower.startswith("جارویس افک"):
+        # 1b. Allowed Users Whitelist Commands (.allow / .disallow / .allowed / جارویس دسترسی)
+        if lower.startswith(".allow") or lower.startswith("jarvis allow") or lower.startswith("جارویس دسترسی"):
+            parts = raw_text.split()
+            if len(parts) > 1 and parts[1].isdigit():
+                target_uid = int(parts[1])
+                allowed_users.add(target_uid)
+                save_allowed_users(allowed_users)
+                await event.edit(f"✅ **دستور اجرا شد!**\nآیدی عددی `{target_uid}` مجاز شد تا با کلمه **جارویس** با ربات هوش مصنوعی گفتگو کند.")
+            elif event.is_reply:
+                reply_msg = await event.get_reply_message()
+                if reply_msg and reply_msg.sender_id:
+                    target_uid = reply_msg.sender_id
+                    allowed_users.add(target_uid)
+                    save_allowed_users(allowed_users)
+                    await event.edit(f"✅ **دستور اجرا شد!**\nکاربر `{target_uid}` مجاز شد تا با کلمه **جارویس** با ربات هوش مصنوعی گفتگو کند.")
+                else:
+                    await event.edit("⚠️ لطفاً آیدی عددی کاربر را وارد کنید یا روی پیام کاربر ریپلای بزنید.")
+            else:
+                await event.edit("⚠️ **راهنما:** `.allow 123456789` یا ریپلای روی پیام با `جارویس دسترسی`")
+            return
+
+        if lower.startswith(".disallow") or lower.startswith("jarvis disallow") or lower.startswith("جارویس لغو دسترسی"):
+            parts = raw_text.split()
+            if len(parts) > 1 and parts[1].isdigit():
+                target_uid = int(parts[1])
+                allowed_users.discard(target_uid)
+                save_allowed_users(allowed_users)
+                await event.edit(f"⛔ **دسترسی لغو شد!**\nآیدی عددی `{target_uid}` از لیست کاربران مجاز چت حذف شد.")
+            elif event.is_reply:
+                reply_msg = await event.get_reply_message()
+                if reply_msg and reply_msg.sender_id:
+                    target_uid = reply_msg.sender_id
+                    allowed_users.discard(target_uid)
+                    save_allowed_users(allowed_users)
+                    await event.edit(f"⛔ **دسترسی لغو شد!**\nکاربر `{target_uid}` از لیست کاربران مجاز حذف شد.")
+                else:
+                    await event.edit("⚠️ لطفاً آیدی عددی کاربر را وارد کنید یا روی پیام کاربر ریپلای بزنید.")
+            else:
+                await event.edit("⚠️ **راهنما:** `.disallow 123456789` یا ریپلای روی پیام با `جارویس لغو دسترسی`")
+            return
+
+        if lower in (".allowed", "jarvis allowed", "جارویس لیست مجاز"):
+            if not allowed_users:
+                await event.edit("📜 **لیست کاربران مجاز خالی است.**\nبرای اضافه کردن آیدی بنویسید: `جارویس دسترسی <ID>`")
+            else:
+                u_list = "\n".join([f"▫️ `{uid}`" for uid in allowed_users])
+                await event.edit(f"📜 **لیست کاربران مجاز جهت چت با JARVIS:**\n───────────────────────────\n{u_list}\n\n💡 این کاربران می‌توانند با ارسال `جارویس <سوال>` با AI گفتگو کنند.")
+            return
             reason = raw_text.split(maxsplit=1)[1] if len(raw_text.split()) > 1 else "Busy / Away"
             is_afk = True
             afk_reason = reason
