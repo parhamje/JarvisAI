@@ -587,63 +587,66 @@ async def start_telegram_listener():
                 await event.edit("📖 **بخش ۸: راهنمای کامل**\n─────────────────\nبرای مشاهده متن کامل راهنمای تمام دستورات، کلمه `راهنما جارویس` را تایپ کنید.\n\n💡 *برای بازگشت بنویسید:* `پنل`")
             return
 
-        # 0c. Avengers: Doomsday Creative Command (Real Ticking Timer)
-        if "doomsday" in lower or "دومزدی" in lower:
+        # 0c. Avengers: Doomsday Creative Command (Real Ticking Timer - In-Place Edit)
+        if lower in (".doomsday", "jarvis doomsday", "جارویس دومزدی", "دومزدی", "پروتکل دومزدی"):
+            board = _get_countdown_str(2026, 12, 18)
+            content = (
+                f"👑 **AVENGERS: DOOMSDAY (DOCTOR DOOM PROTOCOL)** 👑\n"
+                f"🎬 **OFFICIAL RELEASE DATE:** `December 18, 2026`\n\n"
+                f"{board}\n\n"
+                f"⚡ *Stark-Latverian Protocol Authorized by Jarvis AI*"
+            )
             try:
-                await event.delete()
+                await event.edit(content, parse_mode="markdown")
             except Exception:
                 pass
-            
-            # Start Live Ticking Loop
-            tick_msg = await tg_client.send_message(
-                event.chat_id, 
-                f"👑 **AVENGERS: DOOMSDAY (DOCTOR DOOM PROTOCOL)** 👑\n🎬 **OFFICIAL RELEASE DATE:** `December 18, 2026`\n\n" + _get_countdown_str(2026, 12, 18) + "\n\n⚡ *Stark-Latverian Protocol Authorized by Jarvis AI*"
-            )
-            
+
             async def doomsday_ticker():
                 for _ in range(120): # Ticks live every 2 seconds for up to 4 minutes per invocation
                     await asyncio.sleep(2)
                     try:
-                        board = _get_countdown_str(2026, 12, 18)
-                        content = (
+                        b = _get_countdown_str(2026, 12, 18)
+                        c = (
                             f"👑 **AVENGERS: DOOMSDAY (DOCTOR DOOM PROTOCOL)** 👑\n"
                             f"🎬 **OFFICIAL RELEASE DATE:** `December 18, 2026`\n\n"
-                            f"{board}\n\n"
+                            f"{b}\n\n"
                             f"⚡ *Stark-Latverian Protocol Authorized by Jarvis AI*"
                         )
-                        await tick_msg.edit(content, parse_mode="markdown")
+                        await event.edit(c, parse_mode="markdown")
                     except Exception:
                         break # Stop ticking if message was deleted by user
 
             asyncio.create_task(doomsday_ticker())
             return
 
-        # 0d. GTA VI Vice City HUD Creative Command (Real Ticking Timer)
-        if "gta" in lower or "جی تی ای" in lower or "gta6" in lower:
+        # 0d. GTA VI Vice City HUD Creative Command (Real Ticking Timer - In-Place Edit)
+        if lower in (".gta", "jarvis gta", "جارویس جی تی ای", "gta6", "جی تی ای"):
+            board = _get_countdown_str(2026, 11, 19)
+            content = (
+                f"🌴 **GTA VI VICE CITY HUD INTELLIGENCE** 🌴\n"
+                f"🎮 **OFFICIAL RELEASE DATE:** `November 19, 2026 (PS5 & Xbox)`\n"
+                f"⭐ **WANTED:** `⭐️⭐️⭐️⭐️⭐️` | 💵 **CASH:** `$999,999,999`\n\n"
+                f"{board}\n\n"
+                f"📻 *Vice City Radio Relay • Jarvis AI*"
+            )
             try:
-                await event.delete()
+                await event.edit(content, parse_mode="markdown")
             except Exception:
                 pass
-
-            # Start Live Ticking Loop
-            tick_msg_gta = await tg_client.send_message(
-                event.chat_id,
-                f"🌴 **GTA VI VICE CITY HUD INTELLIGENCE** 🌴\n🎮 **OFFICIAL RELEASE DATE:** `November 19, 2026`\n⭐ **WANTED:** `⭐️⭐️⭐️⭐️⭐️` | 💵 **CASH:** `$999,999,999`\n\n" + _get_countdown_str(2026, 11, 19) + "\n\n📻 *Vice City Radio Relay • Jarvis AI*"
-            )
 
             async def gta_ticker():
                 for _ in range(120): # Ticks live every 2 seconds
                     await asyncio.sleep(2)
                     try:
-                        board = _get_countdown_str(2026, 11, 19)
-                        content = (
+                        b = _get_countdown_str(2026, 11, 19)
+                        c = (
                             f"🌴 **GTA VI VICE CITY HUD INTELLIGENCE** 🌴\n"
                             f"🎮 **OFFICIAL RELEASE DATE:** `November 19, 2026 (PS5 & Xbox)`\n"
                             f"⭐ **WANTED:** `⭐️⭐️⭐️⭐️⭐️` | 💵 **CASH:** `$999,999,999`\n\n"
-                            f"{board}\n\n"
+                            f"{b}\n\n"
                             f"📻 *Vice City Radio Relay • Jarvis AI*"
                         )
-                        await tick_msg_gta.edit(content, parse_mode="markdown")
+                        await event.edit(c, parse_mode="markdown")
                     except Exception:
                         break # Stop ticking if message was deleted by user
 
