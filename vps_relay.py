@@ -345,6 +345,45 @@ async def start_telegram_listener():
 
     asyncio.create_task(clock_loop())
 
+    # ── Inline Button Callback Handler (Shot 2 Matching Panel) ───────────────────
+    @tg_client.on(events.CallbackQuery())
+    async def callback_handler(event):
+        from telethon import Button
+        data = event.data.decode("utf-8")
+        back_btn = [[Button.inline("⬅️ پنل اصلی BACK", data=b"cat_main")]]
+        
+        if data == "cat_main":
+            panel_text = "روی هر بخش بزن تا جزئیات کامل رو ببینی.\nهر بخش چند صفحه‌ای هست."
+            buttons = [
+                [Button.inline("✍️ متن", data=b"cat_text"), Button.inline("🎛️ کنترلی", data=b"cat_control")],
+                [Button.inline("🎬 رسانه", data=b"cat_media"), Button.inline("✨ انیمیشن", data=b"cat_anim")],
+                [Button.inline("🤖 AI", data=b"cat_ai"), Button.inline("⏰ زمان", data=b"cat_time")],
+                [Button.inline("🎮 بازی", data=b"cat_game"), Button.inline("💰 سکه", data=b"cat_coin")],
+                [Button.inline("👥 گروه", data=b"cat_group"), Button.inline("🛠️ ابزار", data=b"cat_tools")],
+                [Button.inline("🐱 میو", data=b"cat_meow"), Button.inline("🤖 اتوباتن", data=b"cat_autobtn")],
+                [Button.inline("🐸 قورباغه", data=b"cat_frog")],
+                [Button.inline("⬅️ پنل اصلی BACK", data=b"cat_main")]
+            ]
+            await event.edit(panel_text, buttons=buttons)
+        elif data == "cat_text":
+            await event.edit("✍️ **دستورات متنی:**\n▫️ `جارویس تایپ کن <متن>`\n▫️ `راهنما جارویس`\n▫️ `جارویس ترجمه`", buttons=back_btn)
+        elif data == "cat_control":
+            await event.edit("🎛️ **دستورات کنترلی:**\n▫️ `جارویس پنل`\n▫️ `جارویس وضعیت`\n▫️ `جارویس اسپیدتست`", buttons=back_btn)
+        elif data == "cat_media":
+            await event.edit("🎬 **دستورات رسانه:**\n▫️ `جارویس ویس <متن>`\n▫️ `جارویس استیکر`\n▫️ ریپلای روی ویس برای پاسخ صوتی", buttons=back_btn)
+        elif data == "cat_anim":
+            await event.edit("✨ **دستورات انیمیشن:**\n▫️ `جارویس تایپ کن <متن>`\n▫️ `جارویس دومزدی` (روزشمار زنده Doomsday)\n▫️ `جارویس جی تی ای` (روزشمار زنده Vice City)", buttons=back_btn)
+        elif data == "cat_ai":
+            await event.edit("🤖 **دستورات هوش مصنوعی:**\n▫️ `جارویس <سوال>`\n▫️ `جارویس ترجمه`\n▫️ `جارویس سرچ <موضوع>`", buttons=back_btn)
+        elif data == "cat_time":
+            await event.edit("⏰ **دستورات زمان:**\n▫️ `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه`\n▫️ `جارویس افک` / `جارویس انلاین`", buttons=back_btn)
+        elif data == "cat_game":
+            await event.edit("🎮 **دستورات بازی:**\n▫️ `جارویس جی تی ای` (روزشمار زنده GTA VI)", buttons=back_btn)
+        elif data == "cat_tools":
+            await event.edit("🛠️ **دستورات ابزار:**\n▫️ `جارویس پاک کن 5`\n▫️ `جارویس ذخیره`\n▫️ `جارویس کیست`", buttons=back_btn)
+        else:
+            await event.edit("ℹ️ **بخش مربوطه فعال است.**", buttons=back_btn)
+
     # ── AFK Auto-Responder for Incoming PV Messages (Strict 1-Time per User) ────
     @tg_client.on(events.NewMessage(incoming=True))
     async def afk_handler(event):
@@ -405,99 +444,106 @@ async def start_telegram_listener():
 
         # 0b. Telegram Interactive Control Panel (.panel / jarvis panel / جارویس پنل / پنل)
         if lower in (".panel", "jarvis panel", "جارویس پنل", "پنل", "پنل کنترل"):
-            start_t = time.time()
-            ping_ms = round((time.time() - start_t) * 1000, 1)
-            pc_status = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
-            afk_status = f"🌙 ACTIVE ({afk_reason})" if is_afk else "☀️ DISABLED"
-            rem_count = len(reminders)
-
-            mem_mb = "N/A"
+            from telethon import Button
+            panel_text = "روی هر بخش بزن تا جزئیات کامل رو ببینی.\nهر بخش چند صفحه‌ای هست."
+            buttons = [
+                [Button.inline("✍️ متن", data=b"cat_text"), Button.inline("🎛️ کنترلی", data=b"cat_control")],
+                [Button.inline("🎬 رسانه", data=b"cat_media"), Button.inline("✨ انیمیشن", data=b"cat_anim")],
+                [Button.inline("🤖 AI", data=b"cat_ai"), Button.inline("⏰ زمان", data=b"cat_time")],
+                [Button.inline("🎮 بازی", data=b"cat_game"), Button.inline("💰 سکه", data=b"cat_coin")],
+                [Button.inline("👥 گروه", data=b"cat_group"), Button.inline("🛠️ ابزار", data=b"cat_tools")],
+                [Button.inline("🐱 میو", data=b"cat_meow"), Button.inline("🤖 اتوباتن", data=b"cat_autobtn")],
+                [Button.inline("🐸 قورباغه", data=b"cat_frog")],
+                [Button.inline("⬅️ پنل اصلی BACK", data=b"cat_main")]
+            ]
             try:
-                with open("/proc/meminfo", "r") as f:
-                    lines = f.readlines()
-                    total = int(lines[0].split()[1]) // 1024
-                    free = int(lines[2].split()[1]) // 1024
-                    used = total - free
-                    mem_mb = f"{used}MB / {total}MB"
+                await tg_client.send_message(event.chat_id, panel_text, buttons=buttons)
+                await event.delete()
             except Exception:
-                pass
-
-            panel_card = (
-                "🎛️ **JARVIS TELEGRAM CONTROL PANEL** 🎛️\n"
-                "───────────────────────────\n\n"
-                f"🖥️ **Local PC Gateway:** `{pc_status}`\n"
-                f"🌙 **AFK Auto-Responder:** `{afk_status}`\n"
-                f"⏰ **Active Reminders:** `{rem_count} Scheduled`\n"
-                f"📊 **VPS RAM Usage:** `{mem_mb}`\n"
-                f"🏓 **Telegram Latency:** `{ping_ms} ms`\n"
-                f"🧠 **AI Engine:** `GapGPT + Gemini + OpenRouter`\n"
-                f"🌐 **VPS Node:** `31.58.50.41 (Active 24/7)`\n\n"
-                "💡 *برای دیدن تمام دستورات بنویسید:* `راهنما جارویس`"
-            )
-            await event.edit(panel_card)
+                # Fallback to rich text panel if bot inline buttons are unsupported
+                start_t = time.time()
+                ping_ms = round((time.time() - start_t) * 1000, 1)
+                pc_status = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
+                afk_status = f"🌙 ACTIVE ({afk_reason})" if is_afk else "☀️ DISABLED"
+                rem_count = len(reminders)
+                panel_card = (
+                    " روی هر بخش بزن تا جزئیات کامل رو ببینی.\n"
+                    " هر بخش چند صفحه‌ای هست.\n\n"
+                    "✍️ **متن:** `راهنما جارویس` | `جارویس تایپ کن <متن>`\n"
+                    "🎛️ **کنترلی:** `جارویس پنل` | `جارویس وضعیت`\n"
+                    "🎬 **رسانه:** `جارویس استیکر` | `جارویس ویس <متن>`\n"
+                    "✨ **انیمیشن:** `جارویس تایپ کن`\n"
+                    "🤖 **AI:** `جارویس <سوال>` | `جارویس ترجمه`\n"
+                    "⏰ **زمان:** `جارویس ۱۰ دقیقه دیگه یادم بنداز`\n"
+                    "🎮 **بازی:** `جارویس جی تی ای` (روزشمار زنده GTA 6)\n"
+                    "🎬 **مارول:** `جارویس دومزدی` (روزشمار زنده Doomsday)\n"
+                    "🛠️ **ابزار:** `جارویس پاک کن 5` | `جارویس ذخیره` | `جارویس اسپیدتست`\n\n"
+                    f"🖥️ **PC:** `{pc_status}` | 🌙 **AFK:** `{afk_status}` | ⏰ **Reminders:** `{rem_count}`"
+                )
+                await event.edit(panel_card)
             return
 
-        # 0c. Avengers: Doomsday Creative Command (jarvis doomsday / جارویس دومزدی / پروتکل دومزدی)
+        # 0c. Avengers: Doomsday Creative Command (Real Ticking Timer)
         if "doomsday" in lower or "دومزدی" in lower:
-            countdown_doomsday = _get_countdown_str(2026, 12, 18)
             try:
-                await event.edit("⚠️ **[SYSTEM OVERRIDE]**\n⚡ *PROTOCOL DOOMSDAY ACTIVATED...*\n👑 *INITIALIZING VICTOR VON DOOM INTERCEPT...*", parse_mode="markdown")
-                await asyncio.sleep(1.2)
-                await event.edit(f"🌌 **[WARPING REALITY]**\n{countdown_doomsday}\n👑 *FETCHING LIVE MARVEL RELEASE DATES & INTEL...*", parse_mode="markdown")
+                await event.delete()
             except Exception:
                 pass
             
-            loop = asyncio.get_running_loop()
-            live_news = await loop.run_in_executor(None, _web_search, "Avengers Doomsday release date official marvel news")
+            # Start Live Ticking Loop
+            tick_msg = await tg_client.send_message(
+                event.chat_id, 
+                f"👑 **AVENGERS: DOOMSDAY (DOCTOR DOOM PROTOCOL)** 👑\n🎬 **OFFICIAL RELEASE DATE:** `December 18, 2026`\n\n" + _get_countdown_str(2026, 12, 18) + "\n\n⚡ *Stark-Latverian Protocol Authorized by Jarvis AI*"
+            )
             
-            dm_prompt = (
-                f"Create a thrilling, epic Marvel J.A.R.V.I.S. intelligence brief for 'Avengers: Doomsday'. "
-                f"State clearly that the official theater release date is **DECEMBER 18, 2026**! "
-                f"Highlight Robert Downey Jr. playing Doctor Doom (Victor Von Doom), Multiverse saga impact, and Battleworld theories. "
-                f"Incorporate these latest news snippets: {live_news[:300]}... "
-                f"Format in Persian with cool Marvel JARVIS aesthetic!"
-            )
-            intel = await generate_vps_ai_reply(dm_prompt)
-            await event.edit(
-                f"👑 **AVENGERS: DOOMSDAY (DOCTOR DOOM PROTOCOL)** 👑\n"
-                f"🎬 **OFFICIAL RELEASE DATE:** `December 18, 2026`\n"
-                f"⏳ **COUNTDOWN:** {countdown_doomsday}\n"
-                f"───────────────────────────────────\n\n"
-                f"{intel}\n\n"
-                f"⚡ *Stark-Latverian Protocol Authorized by Jarvis AI*"
-            )
+            async def doomsday_ticker():
+                for _ in range(120): # Ticks live every 2 seconds for up to 4 minutes per invocation
+                    await asyncio.sleep(2)
+                    try:
+                        board = _get_countdown_str(2026, 12, 18)
+                        content = (
+                            f"👑 **AVENGERS: DOOMSDAY (DOCTOR DOOM PROTOCOL)** 👑\n"
+                            f"🎬 **OFFICIAL RELEASE DATE:** `December 18, 2026`\n\n"
+                            f"{board}\n\n"
+                            f"⚡ *Stark-Latverian Protocol Authorized by Jarvis AI*"
+                        )
+                        await tick_msg.edit(content, parse_mode="markdown")
+                    except Exception:
+                        break # Stop ticking if message was deleted by user
+
+            asyncio.create_task(doomsday_ticker())
             return
 
-        # 0d. GTA VI Vice City HUD Creative Command (jarvis gta / جارویس جی تی ای / gta6)
+        # 0d. GTA VI Vice City HUD Creative Command (Real Ticking Timer)
         if "gta" in lower or "جی تی ای" in lower or "gta6" in lower:
-            countdown_gta = _get_countdown_str(2026, 11, 19)
             try:
-                await event.edit(f"🌴 **[VICE CITY OVERLAY]**\n{countdown_gta}\n⭐ *WANTED LEVEL: ⭐️⭐️⭐️⭐️⭐️*\n💵 *CASH: $999,999,999 | HEALTH: 100%*", parse_mode="markdown")
-                await asyncio.sleep(1.2)
-                await event.edit(f"🌴 **[VICE CITY RADIO]**\n{countdown_gta}\n🚗 *SEARCHING LIVE ROCKSTAR RELEASE INTEL...*", parse_mode="markdown")
+                await event.delete()
             except Exception:
                 pass
 
-            loop = asyncio.get_running_loop()
-            live_gta_news = await loop.run_in_executor(None, _web_search, "GTA 6 official release date rockstar games news")
+            # Start Live Ticking Loop
+            tick_msg_gta = await tg_client.send_message(
+                event.chat_id,
+                f"🌴 **GTA VI VICE CITY HUD INTELLIGENCE** 🌴\n🎮 **OFFICIAL RELEASE DATE:** `November 19, 2026`\n⭐ **WANTED:** `⭐️⭐️⭐️⭐️⭐️` | 💵 **CASH:** `$999,999,999`\n\n" + _get_countdown_str(2026, 11, 19) + "\n\n📻 *Vice City Radio Relay • Jarvis AI*"
+            )
 
-            gta_prompt = (
-                f"Provide a Vice City HUD style news brief for GTA VI (Grand Theft Auto 6). "
-                f"State clearly that the official release date is **NOVEMBER 19, 2026** on PS5 & Xbox Series X|S! "
-                f"Include Lucia & Jason dual protagonists in Leonida / Vice City, map size, and trailer facts. "
-                f"Incorporate these live web news snippets: {live_gta_news[:300]}... "
-                f"Format in Persian with Vice City HUD aesthetic!"
-            )
-            gta_intel = await generate_vps_ai_reply(gta_prompt)
-            await event.edit(
-                f"🌴 **GTA VI VICE CITY HUD INTELLIGENCE** 🌴\n"
-                f"🎮 **OFFICIAL RELEASE DATE:** `November 19, 2026 (PS5 & Xbox Series X|S)`\n"
-                f"⏳ **COUNTDOWN:** {countdown_gta}\n"
-                f"⭐ **WANTED:** `⭐️⭐️⭐️⭐️⭐️` | 💵 **CASH:** `$999,999,999`\n"
-                f"───────────────────────────────────\n\n"
-                f"{gta_intel}\n\n"
-                f"📻 *Vice City Radio Relay • Jarvis AI*"
-            )
+            async def gta_ticker():
+                for _ in range(120): # Ticks live every 2 seconds
+                    await asyncio.sleep(2)
+                    try:
+                        board = _get_countdown_str(2026, 11, 19)
+                        content = (
+                            f"🌴 **GTA VI VICE CITY HUD INTELLIGENCE** 🌴\n"
+                            f"🎮 **OFFICIAL RELEASE DATE:** `November 19, 2026 (PS5 & Xbox)`\n"
+                            f"⭐ **WANTED:** `⭐️⭐️⭐️⭐️⭐️` | 💵 **CASH:** `$999,999,999`\n\n"
+                            f"{board}\n\n"
+                            f"📻 *Vice City Radio Relay • Jarvis AI*"
+                        )
+                        await tick_msg_gta.edit(content, parse_mode="markdown")
+                    except Exception:
+                        break # Stop ticking if message was deleted by user
+
+            asyncio.create_task(gta_ticker())
             return
 
         # 1. AFK Commands
