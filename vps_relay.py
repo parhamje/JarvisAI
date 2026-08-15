@@ -406,12 +406,27 @@ async def start_telegram_listener():
             await event.edit(panel_card)
             return
 
+def _get_countdown_str(target_year: int, target_month: int, target_day: int) -> str:
+    try:
+        now = datetime.now(pytz.utc)
+        target = datetime(target_year, target_month, target_day, 0, 0, 0, tzinfo=pytz.utc)
+        diff = target - now
+        if diff.total_seconds() <= 0:
+            return "🎉 منتشر شد!"
+        days = diff.days
+        hours = diff.seconds // 3600
+        mins = (diff.seconds % 3600) // 60
+        return f"⏳ `{days}` روز و `{hours}` ساعت و `{mins}` دقیقه باقیمانده"
+    except Exception:
+        return "⏳ در حال محاسبه روزشمار..."
+
         # 0c. Avengers: Doomsday Creative Command (jarvis doomsday / جارویس دومزدی / پروتکل دومزدی)
         if "doomsday" in lower or "دومزدی" in lower:
+            countdown_doomsday = _get_countdown_str(2026, 12, 18)
             try:
                 await event.edit("⚠️ **[SYSTEM OVERRIDE]**\n⚡ *PROTOCOL DOOMSDAY ACTIVATED...*\n👑 *INITIALIZING VICTOR VON DOOM INTERCEPT...*", parse_mode="markdown")
                 await asyncio.sleep(1.2)
-                await event.edit("🌌 **[WARPING REALITY]**\n👑 *FETCHING LIVE MARVEL RELEASE DATES & INTEL...*", parse_mode="markdown")
+                await event.edit(f"🌌 **[WARPING REALITY]**\n{countdown_doomsday}\n👑 *FETCHING LIVE MARVEL RELEASE DATES & INTEL...*", parse_mode="markdown")
             except Exception:
                 pass
             
@@ -428,7 +443,8 @@ async def start_telegram_listener():
             intel = await generate_vps_ai_reply(dm_prompt)
             await event.edit(
                 f"👑 **AVENGERS: DOOMSDAY (DOCTOR DOOM PROTOCOL)** 👑\n"
-                f"🎬 **OFFICIAL RELEASE DATE:** `December 18, 2026 (Theaters)`\n"
+                f"🎬 **OFFICIAL RELEASE DATE:** `December 18, 2026`\n"
+                f"⏳ **COUNTDOWN:** {countdown_doomsday}\n"
                 f"───────────────────────────────────\n\n"
                 f"{intel}\n\n"
                 f"⚡ *Stark-Latverian Protocol Authorized by Jarvis AI*"
@@ -437,10 +453,11 @@ async def start_telegram_listener():
 
         # 0d. GTA VI Vice City HUD Creative Command (jarvis gta / جارویس جی تی ای / gta6)
         if "gta" in lower or "جی تی ای" in lower or "gta6" in lower:
+            countdown_gta = _get_countdown_str(2026, 11, 19)
             try:
-                await event.edit("🌴 **[VICE CITY OVERLAY]**\n⭐ *WANTED LEVEL: ⭐️⭐️⭐️⭐️⭐️*\n💵 *CASH: $999,999,999 | HEALTH: 100%*", parse_mode="markdown")
+                await event.edit(f"🌴 **[VICE CITY OVERLAY]**\n{countdown_gta}\n⭐ *WANTED LEVEL: ⭐️⭐️⭐️⭐️⭐️*\n💵 *CASH: $999,999,999 | HEALTH: 100%*", parse_mode="markdown")
                 await asyncio.sleep(1.2)
-                await event.edit("🌴 **[VICE CITY RADIO]**\n🚗 *SEARCHING LIVE ROCKSTAR RELEASE INTEL...*", parse_mode="markdown")
+                await event.edit(f"🌴 **[VICE CITY RADIO]**\n{countdown_gta}\n🚗 *SEARCHING LIVE ROCKSTAR RELEASE INTEL...*", parse_mode="markdown")
             except Exception:
                 pass
 
@@ -458,12 +475,10 @@ async def start_telegram_listener():
             await event.edit(
                 f"🌴 **GTA VI VICE CITY HUD INTELLIGENCE** 🌴\n"
                 f"🎮 **OFFICIAL RELEASE DATE:** `November 19, 2026 (PS5 & Xbox Series X|S)`\n"
+                f"⏳ **COUNTDOWN:** {countdown_gta}\n"
                 f"⭐ **WANTED:** `⭐️⭐️⭐️⭐️⭐️` | 💵 **CASH:** `$999,999,999`\n"
                 f"───────────────────────────────────\n\n"
                 f"{gta_intel}\n\n"
-                f"📻 *Vice City Radio Relay • Jarvis AI*"
-            )
-            return
                 f"📻 *Vice City Radio Relay • Jarvis AI*"
             )
             return
