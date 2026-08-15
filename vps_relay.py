@@ -342,11 +342,19 @@ async def start_telegram_listener():
             help_text = (
                 "🤖 **راهنمای کامل ربات سلف JARVIS AI** 🤖\n"
                 "───────────────────────────\n\n"
+                "🎛️ **پنل کنترل تلگرام:**\n"
+                "▫️ `جارویس پنل` یا `.panel` ➔ داشبورد کنترلی زنده در تلگرام\n\n"
+                "🎬 **دستورات خلاقانه مارول و GTA:**\n"
+                "▫️ `جارویس دومزدی` یا `jarvis doomsday` ➔ پروتکل انتقام‌جویان: روز قیامت (Doctor Doom)\n"
+                "▫️ `جارویس جی تی ای` یا `jarvis gta` ➔ هاد زنده Vice City و اخبار GTA VI\n\n"
                 "🌙 **حالت افلاین (AFK):**\n"
                 "▫️ `جارویس افک` یا `.afk` ➔ فعال‌سازی حالت غیرفعال (پاسخ ۱ بار برای هر مخاطب)\n"
                 "▫️ `جارویس انلاین` یا `.notafk` ➔ خروج از حالت افلاین\n\n"
-                "🎙️ **تولید ویس صوتی:**\n"
-                "▫️ `جارویس ویس <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n\n"
+                "🎙️ **تولید ویس صوتی و پاسخ به ویس:**\n"
+                "▫️ `جارویس ویس <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n"
+                "▫️ ریپلای روی ویس با `جارویس` ➔ شنیدن ویس و پاسخ صوتی هوشمند\n\n"
+                "⏰ **یادآور هوشمند متنی:**\n"
+                "▫️ `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه` ➔ تنظیم آلارم و نوتیفیکشین\n\n"
                 "🔍 **جستجوی زنده وب:**\n"
                 "▫️ `جارویس سرچ <متن>` ➔ سرچ زنده در وب و خلاصه اخبار\n\n"
                 "🌐 **ترجمه زنده:**\n"
@@ -355,12 +363,93 @@ async def start_telegram_listener():
                 "▫️ `جارویس وضعیت` یا `.ping` ➔ داشبورد رم سرور، پینگ و اتصال PC\n"
                 "▫️ `جارویس اسپیدتست` یا `.speedtest` ➔ تست سرعت اینترنت VPS\n\n"
                 "🧹 **مدیریت و ابزارها:**\n"
-                "▫️ `جارویس پاک کن <تعداد>` یا `.purge <n>` ➔ پاکسازی پیام‌های اخیر شما\n"
-                "▫️ `جارویس ذخیره` یا `.save` ➔ ارسال پیام به Saved Messages\n\n"
-                "🤖 **پاسخ هوشمند AI:**\n"
-                "▫️ ارسال پیام با `جارویس` / `حارویس` ➔ پاسخ هوشمند انیمیشنی زنده"
+                "▫️ `جارویس تایپ کن <متن>` ➔ انیمیشن تایپ زنده\n"
+                "▫️ `جارویس کیست` (روی پیام) ➔ شناسنامه کاربر\n"
+                "▫️ `جارویس استیکر` (روی عکس) ➔ تبدیل عکس به استیکر\n"
+                "▫️ `جارویس پاک کن <تعداد>` ➔ پاکسازی پیام‌ها\n"
+                "▫️ `جارویس ذخیره` ➔ ارسال پیام به Saved Messages"
             )
             await event.edit(help_text)
+            return
+
+        # 0b. Telegram Interactive Control Panel (.panel / jarvis panel / جارویس پنل / پنل)
+        if lower in (".panel", "jarvis panel", "جارویس پنل", "پنل", "پنل کنترل"):
+            start_t = time.time()
+            ping_ms = round((time.time() - start_t) * 1000, 1)
+            pc_status = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
+            afk_status = f"🌙 ACTIVE ({afk_reason})" if is_afk else "☀️ DISABLED"
+            rem_count = len(reminders)
+
+            mem_mb = "N/A"
+            try:
+                with open("/proc/meminfo", "r") as f:
+                    lines = f.readlines()
+                    total = int(lines[0].split()[1]) // 1024
+                    free = int(lines[2].split()[1]) // 1024
+                    used = total - free
+                    mem_mb = f"{used}MB / {total}MB"
+            except Exception:
+                pass
+
+            panel_card = (
+                "🎛️ **JARVIS TELEGRAM CONTROL PANEL** 🎛️\n"
+                "───────────────────────────\n\n"
+                f"🖥️ **Local PC Gateway:** `{pc_status}`\n"
+                f"🌙 **AFK Auto-Responder:** `{afk_status}`\n"
+                f"⏰ **Active Reminders:** `{rem_count} Scheduled`\n"
+                f"📊 **VPS RAM Usage:** `{mem_mb}`\n"
+                f"🏓 **Telegram Latency:** `{ping_ms} ms`\n"
+                f"🧠 **AI Engine:** `GapGPT + Gemini + OpenRouter`\n"
+                f"🌐 **VPS Node:** `31.58.50.41 (Active 24/7)`\n\n"
+                "💡 *برای دیدن تمام دستورات بنویسید:* `راهنما جارویس`"
+            )
+            await event.edit(panel_card)
+            return
+
+        # 0c. Avengers: Doomsday Creative Command (jarvis doomsday / جارویس دومزدی / پروتکل دومزدی)
+        if "doomsday" in lower or "دومزدی" in lower or "دومزدی" in lower:
+            try:
+                await event.edit("⚠️ **[SYSTEM OVERRIDE]**\n⚡ *PROTOCOL DOOMSDAY ACTIVATED...*\n👑 *INITIALIZING VICTOR VON DOOM INTERCEPT...*", parse_mode="markdown")
+                await asyncio.sleep(1.5)
+                await event.edit("🌌 **[WARPING REALITY]**\n👑 *DOCTOR DOOM IS INFILTRATING THE SYSTEM... GENERATING INTEL...*", parse_mode="markdown")
+            except Exception:
+                pass
+            
+            dm_prompt = (
+                "Give a thrilling, epic Marvel J.A.R.V.I.S. intelligence brief about the upcoming movie 'Avengers: Doomsday' (2026/2027). "
+                "Highlight Robert Downey Jr. playing Doctor Doom (Victor Von Doom), Multiverse saga impact, Battleworld theories, and release expectations. "
+                "Format with cool Marvel JARVIS aesthetic in Persian and English!"
+            )
+            intel = await generate_vps_ai_reply(dm_prompt)
+            await event.edit(
+                f"👑 **AVENGERS: DOOMSDAY (DOCTOR DOOM PROTOCOL)** 👑\n"
+                f"───────────────────────────────────\n\n"
+                f"{intel}\n\n"
+                f"⚡ *Stark-Latverian Protocol Authorized by Jarvis AI*"
+            )
+            return
+
+        # 0d. GTA VI Vice City HUD Creative Command (jarvis gta / جارویس جی تی ای / gta6)
+        if "gta" in lower or "جی تی ای" in lower or "gta6" in lower:
+            try:
+                await event.edit("🌴 **[VICE CITY OVERLAY]**\n⭐ *WANTED LEVEL: ⭐️⭐️⭐️⭐️⭐️*\n💵 *CASH: $999,999,999 | HEALTH: 100%*", parse_mode="markdown")
+                await asyncio.sleep(1.5)
+            except Exception:
+                pass
+
+            gta_prompt = (
+                "Provide an exciting Vice City style news brief for GTA VI (GTA 6). "
+                "Include release date expectations (Fall 2025 / 2026), Lucia & Jason dual protagonists in Leonida / Vice City, "
+                "groundbreaking AI physics, map size, and trailer facts. Format with GTA Vice City HUD aesthetic in Persian!"
+            )
+            gta_intel = await generate_vps_ai_reply(gta_prompt)
+            await event.edit(
+                f"🌴 **GTA VI VICE CITY HUD INTELLIGENCE** 🌴\n"
+                f"⭐ **WANTED:** `⭐️⭐️⭐️⭐️⭐️` | 💵 **CASH:** `$999,999,999`\n"
+                f"───────────────────────────────────\n\n"
+                f"{gta_intel}\n\n"
+                f"📻 *Vice City Radio Relay • Jarvis AI*"
+            )
             return
 
         # 1. AFK Commands
