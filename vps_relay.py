@@ -442,34 +442,63 @@ async def start_telegram_listener():
 
         # 0b. Telegram Interactive Control Panel (.panel / jarvis panel / جارویس پنل / پنل)
         if lower in (".panel", "jarvis panel", "جارویس پنل", "پنل", "پنل کنترل"):
-            from telethon import Button
-            panel_text = "🎛️ **پنل کنترل و راهنمای هوشمند JARVIS AI**\n───────────────────────────\nرو روی هر بخش کلیک کنید تا دستورات و امکانات همان بخش را ببینید:"
-            buttons = [
-                [Button.inline("🤖 هوش مصنوعی", data=b"cat_ai"), Button.inline("🎛️ کنترلی و سرور", data=b"cat_control")],
-                [Button.inline("🌙 حالت AFK", data=b"cat_afk"), Button.inline("🎬 مارول و بازی", data=b"cat_game")],
-                [Button.inline("🎙️ ویس و رسانه", data=b"cat_media"), Button.inline("⏰ یادآور و زمان", data=b"cat_time")],
-                [Button.inline("🛠️ ابزارها و چت", data=b"cat_tools"), Button.inline("📖 راهنمای کامل", data=b"cat_help")]
-            ]
+            start_t = time.time()
+            ping_ms = round((time.time() - start_t) * 1000, 1)
+            pc_status = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
+            afk_status = f"🌙 فعال ({afk_reason})" if is_afk else "☀️ غیرفعال"
+            rem_count = len(reminders)
+
+            mem_mb = "N/A"
             try:
-                await tg_client.send_message(event.chat_id, panel_text, buttons=buttons)
-                await event.delete()
+                with open("/proc/meminfo", "r") as f:
+                    lines = f.readlines()
+                    total = int(lines[0].split()[1]) // 1024
+                    free = int(lines[2].split()[1]) // 1024
+                    used = total - free
+                    mem_mb = f"{used}MB / {total}MB"
             except Exception:
-                # Fallback text panel if inline buttons are unsupported
-                start_t = time.time()
-                ping_ms = round((time.time() - start_t) * 1000, 1)
-                pc_status = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
-                afk_status = f"🌙 ACTIVE ({afk_reason})" if is_afk else "☀️ DISABLED"
-                rem_count = len(reminders)
-                panel_card = (
-                    "🎛️ **JARVIS TELEGRAM CONTROL PANEL**\n"
-                    "───────────────────────────\n\n"
-                    f"🖥️ **Local PC Gateway:** `{pc_status}`\n"
-                    f"🌙 **AFK Auto-Responder:** `{afk_status}`\n"
-                    f"⏰ **Active Reminders:** `{rem_count} Scheduled`\n"
-                    f"🏓 **Telegram Latency:** `{ping_ms} ms`\n\n"
-                    "💡 *برای دیدن تمام دستورات بنویسید:* `راهنما جارویس`"
-                )
-                await event.edit(panel_card)
+                pass
+
+            panel_card = (
+                "🎛️ **پنل کنترل و راهنمای هوشمند JARVIS AI** 🎛️\n"
+                "───────────────────────────\n"
+                "💡 *برای مشاهده هر بخش، عدد آن را تایپ کنید (مثلاً `1` یا `2`):*\n\n"
+                "1️⃣ 🤖 **هوش مصنوعی** ➔ چت زنده، ترجمه و پاسخ صوتی\n"
+                "2️⃣ 🎛️ **کنترلی و سرور** ➔ رم سرور، پینگ و اتصال PC\n"
+                "3️⃣ 🌙 **حالت AFK** ➔ تنظیمات پاسخگوی غیرفعال\n"
+                "4️⃣ 🎬 **مارول و بازی** ➔ روزشمار زنده Doomsday و GTA 6\n"
+                "5️⃣ 🎙️ **ویس و رسانه** ➔ ویس واقعی و استیکرساز\n"
+                "6️⃣ ⏰ **یادآور و زمان** ➔ آلارم متنی و ساعت زنده\n"
+                "7️⃣ 🛠️ **ابزارها و چت** ➔ تایپ انیمیشنی و پاکسازی\n"
+                "8️⃣ 📖 **راهنمای کامل** ➔ لیست تمام دستورات سیستم\n\n"
+                "───────────────────────────\n"
+                f"🖥️ **اتصال PC:** `{pc_status}` | 🌙 **AFK:** `{afk_status}`\n"
+                f"📊 **رم VPS:** `{mem_mb}` | 🏓 **پینگ:** `{ping_ms} ms`"
+            )
+            await event.edit(panel_card)
+            return
+
+        # Quick Menu Section Selectors (1 to 8)
+        if lower in ("1", "2", "3", "4", "5", "6", "7", "8", "جارویس 1", "جارویس 2", "جارویس 3", "جارویس 4", "جارویس 5", "جارویس 6", "جارویس 7", "جارویس 8"):
+            sec = lower.replace("جارویس", "").strip()
+            if sec == "1":
+                await event.edit("🤖 **بخش ۱: هوش مصنوعی**\n─────────────────\n▫️ `جارویس <سوال>` ➔ چت زنده هوش مصنوعی\n▫️ `جارویس ترجمه` (روی پیام) ➔ ترجمه زنده متون\n▫️ `جارویس سرچ <موضوع>` ➔ سرچ زنده وب\n▫️ ریپلای روی ویس با `جارویس` ➔ شنیدن ویس و پاسخ صوتی\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+            elif sec == "2":
+                pc_st = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
+                await event.edit(f"🎛️ **بخش ۲: کنترلی و سرور**\n─────────────────\n▫️ `جارویس پنل` ➔ پنل اصلی کنترل\n▫️ `جارویس وضعیت` ➔ داشبورد رم سرور و پینگ\n▫️ `جارویس اسپیدتست` ➔ تست سرعت سرور VPS\n\n🖥️ **اتصال پی‌سی خانگی:** `{pc_st}`\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+            elif sec == "3":
+                afk_st = f"🌙 فعال ({afk_reason})" if is_afk else "☀️ غیرفعال"
+                await event.edit(f"🌙 **بخش ۳: تنظیمات حالت افلاین (AFK)**\n─────────────────\n▫️ `جارویس افک` ➔ روشن کردن پاسخ خودکار (۱ بار برای هر مخاطب)\n▫️ `جارویس انلاین` ➔ خاموش کردن حالت افلاین\n\n📌 **وضعیت کنونی:** `{afk_st}`\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+            elif sec == "4":
+                await event.edit("🎬 **بخش ۴: مارول و بازی‌ها**\n─────────────────\n▫️ `جارویس دومزدی` ➔ روزشمار تیک‌تاک زنده Avengers: Doomsday\n▫️ `جارویس جی تی ای` ➔ روزشمار تیک‌تاک زنده GTA VI و هاد Vice City\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+            elif sec == "5":
+                await event.edit("🎙️ **بخش ۵: ویس و رسانه**\n─────────────────\n▫️ `جارویس ویس <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n▫️ `جارویس استیکر` ➔ تبدیل عکس به استیکر شفاف\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+            elif sec == "6":
+                await event.edit("⏰ **بخش ۶: یادآور و زمان**\n─────────────────\n▫️ `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه` ➔ تنظیم آلارم و نوتیفیکیشن\n▫️ ساعت زنده پروفایل تلگرام (۲۴ ساعته فعال)\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+            elif sec == "7":
+                await event.edit("🛠️ **بخش ۷: ابزارها و چت**\n─────────────────\n▫️ `جارویس تایپ کن <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `جارویس کیست` ➔ شناسانامه کامل کاربر\n▫️ `جارویس پاک کن <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `جارویس ذخیره` ➔ ذخیره پیام در Saved Messages\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+            elif sec == "8":
+                await event.edit("📖 **بخش ۸: راهنمای کامل**\n─────────────────\nبرای مشاهده متن کامل راهنمای تمام دستورات، کلمه `راهنما جارویس` را تایپ کنید.\n\n💡 *برای بازگشت بنویسید:* `پنل`")
             return
 
         # 0c. Avengers: Doomsday Creative Command (Real Ticking Timer)
