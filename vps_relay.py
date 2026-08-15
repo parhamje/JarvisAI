@@ -345,42 +345,40 @@ async def start_telegram_listener():
 
     asyncio.create_task(clock_loop())
 
-    # ── Inline Button Callback Handler (Shot 2 Matching Panel) ───────────────────
+    # ── Inline Button Callback Handler (Streamlined Real Features) ─────────────
     @tg_client.on(events.CallbackQuery())
     async def callback_handler(event):
         from telethon import Button
         data = event.data.decode("utf-8")
-        back_btn = [[Button.inline("⬅️ پنل اصلی BACK", data=b"cat_main")]]
+        back_btn = [[Button.inline("⬅️ بازگشت به پنل اصلی", data=b"cat_main")]]
         
         if data == "cat_main":
-            panel_text = "روی هر بخش بزن تا جزئیات کامل رو ببینی.\nهر بخش چند صفحه‌ای هست."
+            panel_text = "🎛️ **پنل کنترل و راهنمای هوشمند JARVIS AI**\n───────────────────────────\nرو روی هر بخش کلیک کنید تا دستورات و امکانات همان بخش را ببینید:"
             buttons = [
-                [Button.inline("✍️ متن", data=b"cat_text"), Button.inline("🎛️ کنترلی", data=b"cat_control")],
-                [Button.inline("🎬 رسانه", data=b"cat_media"), Button.inline("✨ انیمیشن", data=b"cat_anim")],
-                [Button.inline("🤖 AI", data=b"cat_ai"), Button.inline("⏰ زمان", data=b"cat_time")],
-                [Button.inline("🎮 بازی", data=b"cat_game"), Button.inline("💰 سکه", data=b"cat_coin")],
-                [Button.inline("👥 گروه", data=b"cat_group"), Button.inline("🛠️ ابزار", data=b"cat_tools")],
-                [Button.inline("🐱 میو", data=b"cat_meow"), Button.inline("🤖 اتوباتن", data=b"cat_autobtn")],
-                [Button.inline("🐸 قورباغه", data=b"cat_frog")],
-                [Button.inline("⬅️ پنل اصلی BACK", data=b"cat_main")]
+                [Button.inline("🤖 هوش مصنوعی", data=b"cat_ai"), Button.inline("🎛️ کنترلی و سرور", data=b"cat_control")],
+                [Button.inline("🌙 حالت AFK", data=b"cat_afk"), Button.inline("🎬 مارول و بازی", data=b"cat_game")],
+                [Button.inline("🎙️ ویس و رسانه", data=b"cat_media"), Button.inline("⏰ یادآور و زمان", data=b"cat_time")],
+                [Button.inline("🛠️ ابزارها و چت", data=b"cat_tools"), Button.inline("📖 راهنمای کامل", data=b"cat_help")]
             ]
             await event.edit(panel_text, buttons=buttons)
-        elif data == "cat_text":
-            await event.edit("✍️ **دستورات متنی:**\n▫️ `جارویس تایپ کن <متن>`\n▫️ `راهنما جارویس`\n▫️ `جارویس ترجمه`", buttons=back_btn)
-        elif data == "cat_control":
-            await event.edit("🎛️ **دستورات کنترلی:**\n▫️ `جارویس پنل`\n▫️ `جارویس وضعیت`\n▫️ `جارویس اسپیدتست`", buttons=back_btn)
-        elif data == "cat_media":
-            await event.edit("🎬 **دستورات رسانه:**\n▫️ `جارویس ویس <متن>`\n▫️ `جارویس استیکر`\n▫️ ریپلای روی ویس برای پاسخ صوتی", buttons=back_btn)
-        elif data == "cat_anim":
-            await event.edit("✨ **دستورات انیمیشن:**\n▫️ `جارویس تایپ کن <متن>`\n▫️ `جارویس دومزدی` (روزشمار زنده Doomsday)\n▫️ `جارویس جی تی ای` (روزشمار زنده Vice City)", buttons=back_btn)
         elif data == "cat_ai":
-            await event.edit("🤖 **دستورات هوش مصنوعی:**\n▫️ `جارویس <سوال>`\n▫️ `جارویس ترجمه`\n▫️ `جارویس سرچ <موضوع>`", buttons=back_btn)
-        elif data == "cat_time":
-            await event.edit("⏰ **دستورات زمان:**\n▫️ `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه`\n▫️ `جارویس افک` / `جارویس انلاین`", buttons=back_btn)
+            await event.edit("🤖 **دستورات هوش مصنوعی:**\n▫️ `جارویس <سوال>` ➔ چت زنده هوش مصنوعی\n▫️ `جارویس ترجمه` ➔ ترجمه زنده متون\n▫️ `جارویس سرچ <موضوع>` ➔ سرچ زنده وب\n▫️ ریپلای رو ویس با `جارویس` ➔ شنیدن ویس و پاسخ صوتی", buttons=back_btn)
+        elif data == "cat_control":
+            pc_st = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
+            await event.edit(f"🎛️ **دستورات کنترلی و وضعیت:**\n▫️ `جارویس پنل` ➔ همین پنل هوشمند\n▫️ `جارویس وضعیت` ➔ داشبورد رم سرور و پینگ\n▫️ `جارویس اسپیدتست` ➔ تست سرعت سرور\n\n🖥️ **اتصال پی‌سی خانگی:** `{pc_st}`", buttons=back_btn)
+        elif data == "cat_afk":
+            afk_st = f"🌙 فعال ({afk_reason})" if is_afk else "☀️ غیرفعال"
+            await event.edit(f"🌙 **تنظیمات حالت افلاین (AFK):**\n▫️ `جارویس افک` ➔ روشن کردن پاسخ خودکار (۱ بار برای هر مخاطب)\n▫️ `جارویس انلاین` ➔ خاموش کردن حالت افلاین\n\n📌 **وضعیت کنونی:** `{afk_st}`", buttons=back_btn)
         elif data == "cat_game":
-            await event.edit("🎮 **دستورات بازی:**\n▫️ `جارویس جی تی ای` (روزشمار زنده GTA VI)", buttons=back_btn)
+            await event.edit("🎬 **مارول و بازی‌ها:**\n▫️ `جارویس دومزدی` ➔ روزشمار تیک‌تاک زنده Avengers: Doomsday\n▫️ `جارویس جی تی ای` ➔ روزشمار تیک‌تاک زنده GTA VI و هاد Vice City", buttons=back_btn)
+        elif data == "cat_media":
+            await event.edit("🎙️ **ویس و رسانه:**\n▫️ `جارویس ویس <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n▫️ `جارویس استیکر` ➔ تبدیل عکس به استیکر شفاف", buttons=back_btn)
+        elif data == "cat_time":
+            await event.edit("⏰ **یادآور و زمان:**\n▫️ `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه` ➔ تنظیم آلارم و نوتیفیکیشن\n▫️ ساعت زنده پروفایل تلگرام (۲۴ ساعته فعال)", buttons=back_btn)
         elif data == "cat_tools":
-            await event.edit("🛠️ **دستورات ابزار:**\n▫️ `جارویس پاک کن 5`\n▫️ `جارویس ذخیره`\n▫️ `جارویس کیست`", buttons=back_btn)
+            await event.edit("🛠️ **ابزارها و چت:**\n▫️ `جارویس تایپ کن <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `جارویس کیست` ➔ شناسانامه کامل کاربر\n▫️ `جارویس پاک کن <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `جارویس ذخیره` ➔ ذخیره پیام در Saved Messages", buttons=back_btn)
+        elif data == "cat_help":
+            await event.edit("📖 **راهنمای کامل:**\nبرای مشاهده متن کامل راهنمای تمام دستورات، کلمه `راهنما جارویس` را تایپ کنید.", buttons=back_btn)
         else:
             await event.edit("ℹ️ **بخش مربوطه فعال است.**", buttons=back_btn)
 
@@ -445,40 +443,31 @@ async def start_telegram_listener():
         # 0b. Telegram Interactive Control Panel (.panel / jarvis panel / جارویس پنل / پنل)
         if lower in (".panel", "jarvis panel", "جارویس پنل", "پنل", "پنل کنترل"):
             from telethon import Button
-            panel_text = "روی هر بخش بزن تا جزئیات کامل رو ببینی.\nهر بخش چند صفحه‌ای هست."
+            panel_text = "🎛️ **پنل کنترل و راهنمای هوشمند JARVIS AI**\n───────────────────────────\nرو روی هر بخش کلیک کنید تا دستورات و امکانات همان بخش را ببینید:"
             buttons = [
-                [Button.inline("✍️ متن", data=b"cat_text"), Button.inline("🎛️ کنترلی", data=b"cat_control")],
-                [Button.inline("🎬 رسانه", data=b"cat_media"), Button.inline("✨ انیمیشن", data=b"cat_anim")],
-                [Button.inline("🤖 AI", data=b"cat_ai"), Button.inline("⏰ زمان", data=b"cat_time")],
-                [Button.inline("🎮 بازی", data=b"cat_game"), Button.inline("💰 سکه", data=b"cat_coin")],
-                [Button.inline("👥 گروه", data=b"cat_group"), Button.inline("🛠️ ابزار", data=b"cat_tools")],
-                [Button.inline("🐱 میو", data=b"cat_meow"), Button.inline("🤖 اتوباتن", data=b"cat_autobtn")],
-                [Button.inline("🐸 قورباغه", data=b"cat_frog")],
-                [Button.inline("⬅️ پنل اصلی BACK", data=b"cat_main")]
+                [Button.inline("🤖 هوش مصنوعی", data=b"cat_ai"), Button.inline("🎛️ کنترلی و سرور", data=b"cat_control")],
+                [Button.inline("🌙 حالت AFK", data=b"cat_afk"), Button.inline("🎬 مارول و بازی", data=b"cat_game")],
+                [Button.inline("🎙️ ویس و رسانه", data=b"cat_media"), Button.inline("⏰ یادآور و زمان", data=b"cat_time")],
+                [Button.inline("🛠️ ابزارها و چت", data=b"cat_tools"), Button.inline("📖 راهنمای کامل", data=b"cat_help")]
             ]
             try:
                 await tg_client.send_message(event.chat_id, panel_text, buttons=buttons)
                 await event.delete()
             except Exception:
-                # Fallback to rich text panel if bot inline buttons are unsupported
+                # Fallback text panel if inline buttons are unsupported
                 start_t = time.time()
                 ping_ms = round((time.time() - start_t) * 1000, 1)
                 pc_status = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
                 afk_status = f"🌙 ACTIVE ({afk_reason})" if is_afk else "☀️ DISABLED"
                 rem_count = len(reminders)
                 panel_card = (
-                    " روی هر بخش بزن تا جزئیات کامل رو ببینی.\n"
-                    " هر بخش چند صفحه‌ای هست.\n\n"
-                    "✍️ **متن:** `راهنما جارویس` | `جارویس تایپ کن <متن>`\n"
-                    "🎛️ **کنترلی:** `جارویس پنل` | `جارویس وضعیت`\n"
-                    "🎬 **رسانه:** `جارویس استیکر` | `جارویس ویس <متن>`\n"
-                    "✨ **انیمیشن:** `جارویس تایپ کن`\n"
-                    "🤖 **AI:** `جارویس <سوال>` | `جارویس ترجمه`\n"
-                    "⏰ **زمان:** `جارویس ۱۰ دقیقه دیگه یادم بنداز`\n"
-                    "🎮 **بازی:** `جارویس جی تی ای` (روزشمار زنده GTA 6)\n"
-                    "🎬 **مارول:** `جارویس دومزدی` (روزشمار زنده Doomsday)\n"
-                    "🛠️ **ابزار:** `جارویس پاک کن 5` | `جارویس ذخیره` | `جارویس اسپیدتست`\n\n"
-                    f"🖥️ **PC:** `{pc_status}` | 🌙 **AFK:** `{afk_status}` | ⏰ **Reminders:** `{rem_count}`"
+                    "🎛️ **JARVIS TELEGRAM CONTROL PANEL**\n"
+                    "───────────────────────────\n\n"
+                    f"🖥️ **Local PC Gateway:** `{pc_status}`\n"
+                    f"🌙 **AFK Auto-Responder:** `{afk_status}`\n"
+                    f"⏰ **Active Reminders:** `{rem_count} Scheduled`\n"
+                    f"🏓 **Telegram Latency:** `{ping_ms} ms`\n\n"
+                    "💡 *برای دیدن تمام دستورات بنویسید:* `راهنما جارویس`"
                 )
                 await event.edit(panel_card)
             return
