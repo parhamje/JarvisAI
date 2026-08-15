@@ -407,22 +407,28 @@ async def start_telegram_listener():
             return
 
         # 0c. Avengers: Doomsday Creative Command (jarvis doomsday / جارویس دومزدی / پروتکل دومزدی)
-        if "doomsday" in lower or "دومزدی" in lower or "دومزدی" in lower:
+        if "doomsday" in lower or "دومزدی" in lower:
             try:
                 await event.edit("⚠️ **[SYSTEM OVERRIDE]**\n⚡ *PROTOCOL DOOMSDAY ACTIVATED...*\n👑 *INITIALIZING VICTOR VON DOOM INTERCEPT...*", parse_mode="markdown")
-                await asyncio.sleep(1.5)
-                await event.edit("🌌 **[WARPING REALITY]**\n👑 *DOCTOR DOOM IS INFILTRATING THE SYSTEM... GENERATING INTEL...*", parse_mode="markdown")
+                await asyncio.sleep(1.2)
+                await event.edit("🌌 **[WARPING REALITY]**\n👑 *FETCHING LIVE MARVEL RELEASE DATES & INTEL...*", parse_mode="markdown")
             except Exception:
                 pass
             
+            loop = asyncio.get_running_loop()
+            live_news = await loop.run_in_executor(None, _web_search, "Avengers Doomsday release date official marvel news")
+            
             dm_prompt = (
-                "Give a thrilling, epic Marvel J.A.R.V.I.S. intelligence brief about the upcoming movie 'Avengers: Doomsday' (2026/2027). "
-                "Highlight Robert Downey Jr. playing Doctor Doom (Victor Von Doom), Multiverse saga impact, Battleworld theories, and release expectations. "
-                "Format with cool Marvel JARVIS aesthetic in Persian and English!"
+                f"Create a thrilling, epic Marvel J.A.R.V.I.S. intelligence brief for 'Avengers: Doomsday'. "
+                f"State clearly that the official theater release date is **DECEMBER 18, 2026**! "
+                f"Highlight Robert Downey Jr. playing Doctor Doom (Victor Von Doom), Multiverse saga impact, and Battleworld theories. "
+                f"Incorporate these latest news snippets: {live_news[:300]}... "
+                f"Format in Persian with cool Marvel JARVIS aesthetic!"
             )
             intel = await generate_vps_ai_reply(dm_prompt)
             await event.edit(
                 f"👑 **AVENGERS: DOOMSDAY (DOCTOR DOOM PROTOCOL)** 👑\n"
+                f"🎬 **OFFICIAL RELEASE DATE:** `December 18, 2026 (Theaters)`\n"
                 f"───────────────────────────────────\n\n"
                 f"{intel}\n\n"
                 f"⚡ *Stark-Latverian Protocol Authorized by Jarvis AI*"
@@ -433,21 +439,31 @@ async def start_telegram_listener():
         if "gta" in lower or "جی تی ای" in lower or "gta6" in lower:
             try:
                 await event.edit("🌴 **[VICE CITY OVERLAY]**\n⭐ *WANTED LEVEL: ⭐️⭐️⭐️⭐️⭐️*\n💵 *CASH: $999,999,999 | HEALTH: 100%*", parse_mode="markdown")
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(1.2)
+                await event.edit("🌴 **[VICE CITY RADIO]**\n🚗 *SEARCHING LIVE ROCKSTAR RELEASE INTEL...*", parse_mode="markdown")
             except Exception:
                 pass
 
+            loop = asyncio.get_running_loop()
+            live_gta_news = await loop.run_in_executor(None, _web_search, "GTA 6 official release date rockstar games news")
+
             gta_prompt = (
-                "Provide an exciting Vice City style news brief for GTA VI (GTA 6). "
-                "Include release date expectations (Fall 2025 / 2026), Lucia & Jason dual protagonists in Leonida / Vice City, "
-                "groundbreaking AI physics, map size, and trailer facts. Format with GTA Vice City HUD aesthetic in Persian!"
+                f"Provide a Vice City HUD style news brief for GTA VI (Grand Theft Auto 6). "
+                f"State clearly that the official release date is **NOVEMBER 19, 2026** on PS5 & Xbox Series X|S! "
+                f"Include Lucia & Jason dual protagonists in Leonida / Vice City, map size, and trailer facts. "
+                f"Incorporate these live web news snippets: {live_gta_news[:300]}... "
+                f"Format in Persian with Vice City HUD aesthetic!"
             )
             gta_intel = await generate_vps_ai_reply(gta_prompt)
             await event.edit(
                 f"🌴 **GTA VI VICE CITY HUD INTELLIGENCE** 🌴\n"
+                f"🎮 **OFFICIAL RELEASE DATE:** `November 19, 2026 (PS5 & Xbox Series X|S)`\n"
                 f"⭐ **WANTED:** `⭐️⭐️⭐️⭐️⭐️` | 💵 **CASH:** `$999,999,999`\n"
                 f"───────────────────────────────────\n\n"
                 f"{gta_intel}\n\n"
+                f"📻 *Vice City Radio Relay • Jarvis AI*"
+            )
+            return
                 f"📻 *Vice City Radio Relay • Jarvis AI*"
             )
             return
