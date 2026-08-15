@@ -698,19 +698,27 @@ async def start_telegram_listener():
                 u_list = "\n".join([f"▫️ `{uid}`" for uid in allowed_users])
                 await event.edit(f"📜 **لیست کاربران مجاز جهت چت با JARVIS:**\n───────────────────────────\n{u_list}\n\n💡 این کاربران می‌توانند با ارسال `جارویس <سوال>` با AI گفتگو کنند.")
             return
+
+        # 1. AFK Commands (.afk / .notafk / جارویس افک / جارویس انلاین / افک)
+        if lower.startswith(".afk") or lower.startswith("jarvis afk") or lower.startswith("جارویس افک") or lower == "افک":
             reason = raw_text.split(maxsplit=1)[1] if len(raw_text.split()) > 1 else "Busy / Away"
             is_afk = True
             afk_reason = reason
             afk_start_time = time.time()
             afk_notified_chats.clear()  # Reset notified list for new AFK session
-            await event.edit(f"🌙 **حالت افلاین فعال شد!**\n📌 پیام خودکار برای مخاطبین فعال است.")
+            try:
+                await event.edit(f"🌙 **حالت افلاین فعال شد!**\n📌 دلیل: `{afk_reason}`\n📌 پاسخ خودکار برای مخاطبین فعال است.")
+            except Exception:
+                await tg_client.send_message(event.chat_id, f"🌙 **حالت افلاین فعال شد!**\n📌 دلیل: `{afk_reason}`")
             return
 
-        if lower.startswith(".notafk") or lower.startswith("jarvis back") or lower.startswith("جارویس انلاین"):
-            if is_afk:
-                is_afk = False
-                afk_notified_chats.clear()
+        if lower.startswith(".notafk") or lower.startswith("jarvis back") or lower.startswith("جارویس انلاین") or lower == "انلاین":
+            is_afk = False
+            afk_notified_chats.clear()
+            try:
                 await event.edit("☀️ **حالت افلاین خاموش شد. خوش آمدید!**")
+            except Exception:
+                await tg_client.send_message(event.chat_id, "☀️ **حالت افلاین خاموش شد. خوش آمدید!**")
             return
 
         # 2. Ping & Status Command (.ping / jarvis status / جارویس وضعیت)
