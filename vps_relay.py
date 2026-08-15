@@ -186,21 +186,63 @@ def _web_search(query: str) -> str:
         print(f"[Search Error] {e}")
     return _gapgpt_generate(f"Answer this query using live knowledge: {query}")
 
-# ── Voice Note TTS Generator ───────────────────────────────────────────────────
+# ── Reminder Engine ───────────────────────────────────────────────────────────
 
-def _generate_tts_audio(text: str, output_path: str) -> bool:
-    try:
-        lang = "fa" if any("\u0600" <= c <= "\u06FF" for c in text) else "en"
-        url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(text[:200])}&tl={lang}&client=tw-ob"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        res = requests.get(url, headers=headers, timeout=15)
-        if res.status_code == 200:
-            with open(output_path, "wb") as f:
-                f.write(res.content)
-            return True
-    except Exception as e:
-        print(f"[TTS Error] {e}")
-    return False
+reminders = []
+
+def parse_time_str(time_str: str) -> int:
+    """Parses time strings like 10m, 2h, 30s, 1d into total seconds."""
+    time_str = time_str.lower().strip()
+    # Persian numbers mapping
+    p_digits = str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789')
+    time_str = time_str.translate(p_digits)
+    
+    match = re.match(r'^(\d+)\s*(s|m|h|d|ثانیه|دقیقه|ساعت|روز)?$', time_str)
+    if not match:
+        return 0
+    val, unit = int(match.group(1)), match.group(2)
+    if not unit or unit in ('s', 'ثانیه'):
+        return val
+    elif unit in ('m', 'دقیقه'):
+        return val * 60
+    elif unit in ('h', 'ساعت'):
+        return val * 3600
+    elif unit in ('d', 'روز'):
+        return val * 86400
+    return val * 60
+
+async def schedule_reminder(chat_id: int, delay_sec: int, task_text: str):
+    reminders.append({"chat_id": chat_id, "text": task_text, "due": time.time() + delay_sec})
+    await asyncio.sleep(delay_sec)
+    if tg_client:
+        try:
+            alert_msg = (
+                f"⏰ **REMINDER ALERT!**\n"
+                f"────────────────────\n"
+                f"📌 **Task:** {task_text}\n"
+                f"⚡ *Jarvis Reminder System*"
+            )
+            await tg_client.send_message(chat_id, alert_msg)
+            # Also notify Saved Messages if chat_id is private
+            await tg_client.send_message("me", alert_msg)
+        except Exception as e:
+            print(f"[Reminder Error] {e}")
+
+# ── Voice-to-Text Audio Transcription Helper ─────────────────────────────────
+
+def _transcribe_audio(file_path: str) -> str:
+    """Transcribe voice note using Gemini or fallback"""
+    if ai_client:
+        try:
+            uploaded = ai_client.files.upload(file=file_path)
+            res = ai_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[uploaded, "Transcribe this audio accurately. If it contains Persian or English, write the exact spoken text."]
+            )
+            return res.text.strip()
+        except Exception as e:
+            print(f"[Audio Transcribe Error] {e}")
+    return ""
 
 # ── WebSocket Gateway ─────────────────────────────────────────────────────────
 
@@ -435,6 +477,32 @@ async def start_telegram_listener():
             await event.edit(f"🌐 **WEB SEARCH RESULTS:**\n\n{search_res}")
             return
 
+        # 8b. Smart Reminder Command (.remind <time> <task> / جارویس <زمان> دیگه یادم بنداز <کار>)
+        if lower.startswith(".remind") or "یادم بنداز" in lower:
+            parts = raw_text.split()
+            # Extract time & task text
+            time_str = "10m"
+            task_text = "Check task"
+            
+            if lower.startswith(".remind"):
+                if len(parts) >= 3:
+                    time_str = parts[1]
+                    task_text = " ".join(parts[2:])
+            elif "یادم بنداز" in lower:
+                # e.g. "جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه"
+                sub_parts = raw_text.split("یادم بنداز")
+                time_part = sub_parts[0].replace("جارویس", "").replace("دیگه", "").strip()
+                task_text = sub_parts[1].strip() if len(sub_parts) > 1 else "یادآوری مهم"
+                time_str = time_part if time_part else "10m"
+
+            delay_sec = parse_time_str(time_str)
+            if delay_sec > 0:
+                asyncio.create_task(schedule_reminder(event.chat_id, delay_sec, task_text))
+                await event.edit(f"⏰ **یادآور با موفقیت تنظیم شد!**\n📌 کار: _{task_text}_\n⏳ زمان: `{delay_sec // 60}` دقیقه دیگر.")
+            else:
+                await event.edit("⚠️ فرمت زمان نامعتبر است. مثال: `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه`")
+            return
+
         # 9. Animated Typewriter Effect (.type <text> / جارویس تایپ کن <متن>)
         if lower.startswith(".type") or lower.startswith("جارویس تایپ کن"):
             target_text = raw_text.split(maxsplit=2 if lower.startswith("جارویس تایپ کن") else 1)[-1]
@@ -519,10 +587,40 @@ async def start_telegram_listener():
         if not matched_trigger:
             return
 
-        idx = lower.find(matched_trigger)
-        cmd = raw_text[idx + len(matched_trigger):].strip()
-        if not cmd:
-            cmd = "سلام"
+        reply_msg = await event.get_reply_message()
+
+        # Voice Note Auto-Intelligence (If replying to a voice message)
+        if reply_msg and reply_msg.voice:
+            try:
+                await event.edit("🎙️ *Listening & transcribing voice note...*")
+                voice_path = await reply_msg.download_media(file="/tmp/incoming_voice.ogg")
+                loop = asyncio.get_running_loop()
+                transcribed_text = await loop.run_in_executor(None, _transcribe_audio, voice_path)
+                
+                if transcribed_text:
+                    await event.edit(f"🎧 *Transcribed Voice:* \"{transcribed_text}\"\n\n🧠 *thinking...*")
+                    ai_reply = await generate_vps_ai_reply(transcribed_text)
+                    
+                    # Generate voice reply audio
+                    v_out = "/tmp/vps_ai_voice.mp3"
+                    ok = await loop.run_in_executor(None, _generate_tts_audio, ai_reply, v_out)
+                    if ok and os.path.exists(v_out):
+                        await event.delete()
+                        await tg_client.send_file(event.chat_id, v_out, voice_note=True, caption=f"🤖 **J.A.R.V.I.S:**\n{ai_reply}")
+                        return
+                    else:
+                        await event.edit(f"🎧 *Transcribed:* \"{transcribed_text}\"\n\n🤖 **J.A.R.V.I.S:**\n{ai_reply}")
+                        return
+                else:
+                    cmd = "Voice message received, please respond helpfully."
+            except Exception as vn_err:
+                print(f"[Voice AI Error] {vn_err}")
+                cmd = "Voice transcription error"
+        else:
+            idx = lower.find(matched_trigger)
+            cmd = raw_text[idx + len(matched_trigger):].strip()
+            if not cmd:
+                cmd = "سلام"
 
         print(f"[VPS Relay] Self-Bot Triggered: '{raw_text}' -> Command: '{cmd}'")
 
@@ -554,11 +652,149 @@ async def start_telegram_listener():
 
     await tg_client.run_until_disconnected()
 
+# ── 24/7 Web Control Dashboard Server (Port 8080) ────────────────────────────
+
+async def dashboard_http_handler(reader, writer):
+    request_line = await reader.readline()
+    while True:
+        line = await reader.readline()
+        if not line or line == b'\r\n':
+            break
+
+    pc_status = "ONLINE ⚡" if connected_pc else "OFFLINE 🌙"
+    pc_color = "#00ff99" if connected_pc else "#ff2255"
+    afk_status = f"ACTIVE ({afk_reason})" if is_afk else "DISABLED"
+    afk_color = "#ff7700" if is_afk else "#00e5ff"
+    rem_count = len(reminders)
+
+    mem_info = "N/A"
+    try:
+        with open("/proc/meminfo", "r") as f:
+            lines = f.readlines()
+            total = int(lines[0].split()[1]) // 1024
+            free = int(lines[2].split()[1]) // 1024
+            used = total - free
+            mem_info = f"{used} MB / {total} MB"
+    except Exception:
+        pass
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A.R.V.I.S. VPS Gateway Control Panel</title>
+    <style>
+        body {{
+            background-color: #000810;
+            color: #00e5ff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+        }}
+        .panel {{
+            width: 100%;
+            max-width: 800px;
+            background: linear-gradient(180deg, #00101c 0%, #000812 100%);
+            border: 2px solid #005580;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.15);
+        }}
+        h1 {{
+            font-size: 26px;
+            letter-spacing: 2px;
+            margin-top: 0;
+            border-bottom: 2px solid #00334d;
+            padding-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }}
+        .grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-top: 25px;
+        }}
+        .card {{
+            background: #001424;
+            border: 1px solid #003d5c;
+            border-radius: 8px;
+            padding: 20px;
+        }}
+        .label {{
+            font-size: 12px;
+            color: #2e7a8a;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }}
+        .val {{
+            font-size: 20px;
+            font-weight: bold;
+        }}
+        .footer {{
+            margin-top: 30px;
+            font-size: 12px;
+            color: #006b80;
+            text-align: center;
+            border-top: 1px solid #002b40;
+            padding-top: 15px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <h1>
+            <span>🤖 J.A.R.V.I.S. VPS GATEWAY</span>
+            <span style="font-size: 14px; color: #00ff99;">LIVE 24/7</span>
+        </h1>
+        <div class="grid">
+            <div class="card">
+                <div class="label">Local PC Gateway</div>
+                <div class="val" style="color: {pc_color};">{pc_status}</div>
+            </div>
+            <div class="card">
+                <div class="label">AFK Auto-Responder</div>
+                <div class="val" style="color: {afk_color};">{afk_status}</div>
+            </div>
+            <div class="card">
+                <div class="label">Active Scheduled Reminders</div>
+                <div class="val" style="color: #ffd000;">{rem_count} Active</div>
+            </div>
+            <div class="card">
+                <div class="label">VPS Server Memory (RAM)</div>
+                <div class="val" style="color: #a0feff;">{mem_info}</div>
+            </div>
+        </div>
+        <div class="footer">
+            PARHAM JARVIS AI SYSTEM • VPS NODE: 31.58.50.41 • TELEGRAPH & WEBSOCKET READY
+        </div>
+    </div>
+</body>
+</html>"""
+
+    response = (
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/html; charset=utf-8\r\n"
+        f"Content-Length: {len(html_content.encode('utf-8'))}\r\n"
+        "Connection: close\r\n\r\n" + html_content
+    )
+    writer.write(response.encode('utf-8'))
+    await writer.drain()
+    writer.close()
+
 async def main():
     server = await websockets.serve(ws_handler, "0.0.0.0", 8765)
+    web_dashboard = await asyncio.start_server(dashboard_http_handler, "0.0.0.0", 8080)
     print("[VPS Relay] WebSocket Gateway listening on port 8765...")
+    print("[VPS Relay] Web Control Panel Dashboard listening on http://31.58.50.41:8080...")
     await asyncio.gather(
         server.wait_closed(),
+        web_dashboard.serve_forever(),
         start_telegram_listener()
     )
 
