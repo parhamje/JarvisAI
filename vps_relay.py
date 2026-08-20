@@ -364,7 +364,27 @@ async def start_telegram_listener():
         print("[VPS Relay] Error: api_id / api_hash missing")
         return
 
-    tg_client = TelegramClient(str(SESSION_PATH), api_id, api_hash)
+    proxy_cfg = keys.get("proxy")
+    if proxy_cfg and isinstance(proxy_cfg, dict):
+        try:
+            import socks
+            ptype = socks.SOCKS5 if proxy_cfg.get("proxy_type", "").lower() == "socks5" else socks.HTTP
+            p_tuple = (
+                ptype,
+                proxy_cfg.get("addr"),
+                int(proxy_cfg.get("port")),
+                True,
+                proxy_cfg.get("username"),
+                proxy_cfg.get("password")
+            )
+            tg_client = TelegramClient(str(SESSION_PATH), api_id, api_hash, proxy=p_tuple)
+            print(f"[VPS Relay] Using Telegram Proxy ({proxy_cfg.get('addr')}:{proxy_cfg.get('port')})...")
+        except Exception as pe:
+            print(f"[VPS Relay] Proxy config error: {pe}")
+            tg_client = TelegramClient(str(SESSION_PATH), api_id, api_hash)
+    else:
+        tg_client = TelegramClient(str(SESSION_PATH), api_id, api_hash)
+
     await tg_client.start()
     print("[VPS Relay] 24/7 Telegram Self-Bot active on VPS!")
 
