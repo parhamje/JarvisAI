@@ -241,6 +241,20 @@ TOOL_DECLARATIONS = [
         }
     },
     {
+        "name": "set_voice_persona",
+        "description": "Changes the voice persona and accent of Jarvis (e.g. British Jarvis, American Jarvis, Persian male/female, FRIDAY).",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "persona": {
+                    "type": "STRING",
+                    "description": "Voice persona key: jarvis_british | jarvis_american | persian_male | persian_female | fem_friday"
+                }
+            },
+            "required": ["persona"]
+        }
+    },
+    {
         "name": "autonomous_computer",
         "description": "Full PC control agent. Uses computer vision to 'see' the screen and perform clicks/typing to achieve complex desktop tasks.",
         "parameters": {
@@ -709,6 +723,16 @@ class JarvisLive:
         elif not self.ui.muted:
             self.ui.set_state("LISTENING")
 
+    def flush_audio(self):
+        """Immediately flushes pending audio chunks to cancel playback in <10ms."""
+        if self.audio_in_queue:
+            while not self.audio_in_queue.empty():
+                try:
+                    self.audio_in_queue.get_nowait()
+                except Exception:
+                    break
+        self.set_speaking(False)
+
     def speak(self, text: str):
         if not self._loop or not self.session:
             return
@@ -745,6 +769,9 @@ class JarvisLive:
             parts.append(mem_str)
         parts.append(sys_prompt)
 
+        from actions.voice_manager import get_gemini_voice_name
+        active_voice = get_gemini_voice_name()
+
         return types.LiveConnectConfig(
             response_modalities=["AUDIO"],
             output_audio_transcription={},
@@ -755,7 +782,7 @@ class JarvisLive:
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name="Charon"
+                        voice_name=active_voice
                     )
                 )
             ),
@@ -859,6 +886,13 @@ class JarvisLive:
                 r = await loop.run_in_executor(None, lambda: code_helper(parameters=args, player=self.ui, speak=self.speak))
                 result = r or "Done."
 
+            elif name == "set_voice_persona":
+                from actions.voice_manager import set_active_voice, VOICE_PRESETS
+                p = args.get("persona", "jarvis_british")
+                success = set_active_voice(p)
+                desc = VOICE_PRESETS.get(p, {}).get("description", p)
+                result = f"Voice persona switched to '{p}' ({desc})." if success else f"Unknown voice persona: {p}"
+
             elif name == "dev_agent":
                 r = await loop.run_in_executor(None, lambda: dev_agent(parameters=args, player=self.ui, speak=self.speak))
                 result = r or "Done."
@@ -961,20 +995,33 @@ class JarvisLive:
             await self.session.send_realtime_input(media=msg)
 
     async def _listen_audio(self):
-        print("[JARVIS] 🎤 Mic started")
+        print("[JARVIS] 🎤 Mic started (Full-Duplex Active)")
         loop = asyncio.get_event_loop()
 
         def callback(indata, frames, time_info, status):
+            if self.ui.muted:
+                return
+
+            data = indata.tobytes()
+            # Calculate audio energy (RMS) to allow intelligent user barge-in over speaker output
+            import numpy as np
+            samples = np.frombuffer(data, dtype=np.int16)
+            rms = np.sqrt(np.mean(samples.astype(np.float32)**2)) if len(samples) > 0 else 0
+
             with self._speaking_lock:
                 jarvis_speaking = self._is_speaking
-            if not jarvis_speaking and not self.ui.muted:
-                data = indata.tobytes()
-                def _safe_put(chunk=data):
-                    try:
-                        self.out_queue.put_nowait({"data": chunk, "mime_type": "audio/pcm"})
-                    except asyncio.QueueFull:
-                        pass  # silently drop — a few lost frames are inaudible
-                loop.call_soon_threadsafe(_safe_put)
+
+            # In full duplex: if Jarvis is speaking, only stream if user is actively speaking (RMS > 700)
+            # to prevent acoustic feedback loop while enabling effortless voice interruption
+            if jarvis_speaking and rms < 700:
+                return
+
+            def _safe_put(chunk=data):
+                try:
+                    self.out_queue.put_nowait({"data": chunk, "mime_type": "audio/pcm"})
+                except asyncio.QueueFull:
+                    pass  # silently drop — a few lost frames are inaudible
+            loop.call_soon_threadsafe(_safe_put)
 
         try:
             with sd.InputStream(
@@ -984,7 +1031,7 @@ class JarvisLive:
                 blocksize=CHUNK_SIZE,
                 callback=callback,
             ):
-                print("[JARVIS] 🎤 Mic stream open")
+                print("[JARVIS] 🎤 Mic stream open (Continuous Full-Duplex)")
                 while True:
                     await asyncio.sleep(0.1)
         except Exception as e:
@@ -1014,6 +1061,15 @@ class JarvisLive:
                     if response.server_content:
                         sc = response.server_content
 
+                        # ── Barge-In Interruption Detection ──────────────────
+                        if getattr(sc, "interrupted", False):
+                            print("[JARVIS] ⚡ Interrupted by user (Barge-in detected)!")
+                            self.flush_audio()
+                            self.ui.set_state("LISTENING")
+                            in_buf = []
+                            out_buf = []
+                            continue
+
                         if sc.output_transcription and sc.output_transcription.text:
                             txt = _clean_transcript(sc.output_transcription.text)
                             if txt:
@@ -1023,6 +1079,12 @@ class JarvisLive:
                             txt = _clean_transcript(sc.input_transcription.text)
                             if txt:
                                 in_buf.append(txt)
+                                # Fast-path local hotword interrupts
+                                txt_lower = txt.lower().strip()
+                                if txt_lower in ("stop", "shut up", "quiet", "cancel", "hold on", "صبر کن", "ساکت", "استپ", "قطع شو"):
+                                    print(f"[JARVIS] 🛑 Local fast-path interrupt: '{txt}'")
+                                    self.flush_audio()
+                                    self.ui.set_state("LISTENING")
 
                         if sc.turn_complete:
                             if self._turn_done_event:
