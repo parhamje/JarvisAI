@@ -1168,32 +1168,6 @@ class SettingsOverlay(QWidget):
         self._inp_tg_phone = _mk_input("TELEGRAM PHONE", "+1234567890", "telegram_phone")
         self._inp_or_key = _mk_input("OPENROUTER API KEY", "sk-or-v1...", "openrouter_api_key", True)
 
-        # Voice Persona Selection
-        layout.addWidget(_lbl("VOICE PERSONA", 8, color=C.TEXT_DIM, align=Qt.AlignmentFlag.AlignLeft))
-        self._combo_voice = QComboBox()
-        self._combo_voice.setFont(QFont("Courier New", 9))
-        self._combo_voice.setFixedHeight(30)
-        self._combo_voice.setStyleSheet(f"""
-            QComboBox {{ background: #000d12; color: {C.TEXT}; border: 1px solid {C.BORDER}; border-radius: 3px; padding: 2px 8px; }}
-            QComboBox:focus {{ border: 1px solid {C.PRI}; }}
-            QComboBox QAbstractItemView {{ background: #000d12; color: {C.TEXT}; selection-background-color: {C.PRI_GHO}; selection-color: {C.PRI}; }}
-        """)
-        voices = [
-            ("jarvis_british", "🎙️ J.A.R.V.I.S (Paul Bettany British Tone)"),
-            ("fem_friday", "🎙️ F.R.I.D.A.Y (Kerry Condon Female Tone)"),
-            ("jarvis_american", "🎙️ American Quick Assistant (Puck)"),
-            ("persian_male", "🎙️ Persian Male (Farid)"),
-            ("persian_female", "🎙️ Persian Female (Dilara)")
-        ]
-        curr_v = existing.get("voice_preset", "jarvis_british")
-        sel_idx = 0
-        for idx, (v_key, v_label) in enumerate(voices):
-            self._combo_voice.addItem(v_label, v_key)
-            if v_key == curr_v:
-                sel_idx = idx
-        self._combo_voice.setCurrentIndex(sel_idx)
-        layout.addWidget(self._combo_voice)
-
         layout.addSpacing(12)
 
         btn_row = QHBoxLayout()
@@ -1232,7 +1206,6 @@ class SettingsOverlay(QWidget):
         d["telegram_api_hash"] = self._inp_tg_hash.text().strip()
         d["telegram_phone"] = self._inp_tg_phone.text().strip()
         d["openrouter_api_key"] = self._inp_or_key.text().strip()
-        d["voice_preset"] = self._combo_voice.currentData()
         
         os.makedirs(CONFIG_DIR, exist_ok=True)
         API_FILE.write_text(json.dumps(d, indent=4), encoding="utf-8")
