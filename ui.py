@@ -18,13 +18,13 @@ from PyQt6.QtCore import (
     QTimer, QUrl, pyqtSignal,
 )
 from PyQt6.QtGui import (
-    QBrush, QColor, QDragEnterEvent, QDropEvent, QFont, QFontDatabase,
+    QAction, QBrush, QColor, QDragEnterEvent, QDropEvent, QFont, QFontDatabase,
     QImage, QKeySequence, QLinearGradient, QPainter, QPainterPath, QPen,
     QPixmap, QRadialGradient, QShortcut,
 )
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
-    QMainWindow, QPushButton, QScrollArea, QSizePolicy, QTextEdit,
+    QMainWindow, QMenu, QPushButton, QScrollArea, QSizePolicy, QTextEdit,
     QVBoxLayout, QWidget, QProgressBar, QGraphicsDropShadowEffect,
 )
 
@@ -1212,6 +1212,237 @@ class SettingsOverlay(QWidget):
         self.done.emit()
 
 
+class FloatingOrbWidget(QWidget):
+    """
+    Floating, frameless, translucent, always-on-top Arc-Reactor Mini HUD.
+    Features:
+      - Iron Man Arc-Reactor core with glowing reactor blades & rotating arcs
+      - Dynamic state animations (LISTENING, SPEAKING, THINKING, MUTED)
+      - Audio-reactive waveform ripple & particle halo
+      - Seamless mouse-dragging across desktop
+      - Double-click to restore Full HUD
+      - Right-click context menu (Restore, Screen Scan, Mute, Exit)
+    """
+    def __init__(self, main_window: 'MainWindow', parent=None):
+        super().__init__(parent)
+        self._main_window = main_window
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.Tool
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setFixedSize(180, 180)
+
+        self._state    = "LISTENING"
+        self._muted    = False
+        self._speaking = False
+        self._tick     = 0
+        self._blink    = False
+        self._halo     = 100.0
+        self._drag_pos = None
+
+        self._particles = [
+            [random.uniform(-40, 40), random.uniform(-40, 40),
+             random.uniform(-0.6, 0.6), random.uniform(-0.6, 0.6),
+             random.uniform(0.2, 0.9)]
+            for _ in range(16)
+        ]
+
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._on_tick)
+        self._timer.start(30)
+
+    def set_state(self, state: str):
+        self._state    = state
+        self._speaking = (state == "SPEAKING")
+        self.update()
+
+    def set_muted(self, muted: bool):
+        self._muted = muted
+        self.update()
+
+    def _on_tick(self):
+        self._tick += 1
+        if self._tick % 16 == 0:
+            self._blink = not self._blink
+
+        target_halo = 240.0 if self._speaking else (160.0 if self._state == "THINKING" else (50.0 if self._muted else 110.0))
+        self._halo += (target_halo - self._halo) * 0.12
+
+        # Update floating energy particles
+        for pt in self._particles:
+            pt[0] += pt[2]
+            pt[1] += pt[3]
+            dist = math.sqrt(pt[0]**2 + pt[1]**2)
+            if dist > 55 or dist < 12:
+                pt[0] = random.uniform(-25, 25)
+                pt[1] = random.uniform(-25, 25)
+                pt[4] = random.uniform(0.3, 0.9)
+        self.update()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.MouseButton.LeftButton and self._drag_pos is not None:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
+        event.accept()
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._main_window._restore_from_orb()
+            event.accept()
+
+    def contextMenuEvent(self, event):
+        menu = QMenu(self)
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {C.PANEL};
+                color: {C.TEXT};
+                border: 1px solid {C.BORDER_B};
+                border-radius: 6px;
+                padding: 4px;
+                font-family: 'Courier New';
+                font-size: 11px;
+            }}
+            QMenu::item {{
+                padding: 6px 20px;
+                border-radius: 4px;
+            }}
+            QMenu::item:selected {{
+                background-color: {C.PRI_GHO};
+                color: {C.PRI};
+            }}
+        """)
+
+        act_expand = menu.addAction("⛶  Expand Full HUD")
+        act_expand.triggered.connect(self._main_window._restore_from_orb)
+
+        act_scan = menu.addAction("👁  Scan Screen Now")
+        act_scan.triggered.connect(self._scan_screen)
+
+        mute_txt = "🎙  Unmute Mic" if self._muted else "🔇  Mute Mic"
+        act_mute = menu.addAction(mute_txt)
+        act_mute.triggered.connect(self._main_window._toggle_mute)
+
+        menu.addSeparator()
+        act_quit = menu.addAction("✖  Exit J.A.R.V.I.S")
+        act_quit.triggered.connect(QApplication.instance().quit)
+
+        menu.exec(event.globalPos())
+
+    def _scan_screen(self):
+        if self._main_window.on_text_command:
+            msg = "[SCREEN_ANALYSIS] Analyze the current desktop screen in detail and advise me on what you see."
+            threading.Thread(target=self._main_window.on_text_command, args=(msg,), daemon=True).start()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        W, H = self.width(), self.height()
+        cx, cy = W / 2.0, H / 2.0
+
+        # State color resolution
+        if self._muted:
+            base_hex = C.MUTED_C
+            core_hex = "#4a0010"
+        elif self._speaking:
+            base_hex = C.ACC
+            core_hex = "#331500"
+        elif self._state == "THINKING":
+            base_hex = C.ACC2
+            core_hex = "#2b2200"
+        elif self._state == "LISTENING":
+            base_hex = C.GREEN
+            core_hex = "#002b18"
+        else:
+            base_hex = C.PRI
+            core_hex = "#001a2b"
+
+        # 1. Outer Translucent Dark Halo (Glass Shield)
+        p.setBrush(QBrush(QColor(0, 8, 16, 210)))
+        p.setPen(QPen(qcol(C.BORDER_B, 180), 1.5))
+        p.drawEllipse(QRectF(cx - 82, cy - 82, 164, 164))
+
+        # 2. Glowing Ambient Pulse Halo
+        h_rad = QRadialGradient(cx, cy, 80)
+        h_rad.setColorAt(0.0, qcol(base_hex, min(200, int(self._halo * 0.9))))
+        h_rad.setColorAt(0.5, qcol(base_hex, min(100, int(self._halo * 0.35))))
+        h_rad.setColorAt(1.0, QColor(0, 0, 0, 0))
+        p.setBrush(QBrush(h_rad))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(QRectF(cx - 80, cy - 80, 160, 160))
+
+        # 3. Outer Rotating Tech Arcs
+        t = self._tick
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        
+        # Arc Layer 1 (Clockwise)
+        p.setPen(QPen(qcol(base_hex, 190), 2.2))
+        p.drawArc(QRectF(cx - 72, cy - 72, 144, 144), int((t * 2.0) * 16), int(60 * 16))
+        p.drawArc(QRectF(cx - 72, cy - 72, 144, 144), int((t * 2.0 + 120) * 16), int(60 * 16))
+        p.drawArc(QRectF(cx - 72, cy - 72, 144, 144), int((t * 2.0 + 240) * 16), int(60 * 16))
+
+        # Arc Layer 2 (Counter-Clockwise Thin Dash)
+        p.setPen(QPen(qcol(C.PRI_DIM, 140), 1.2, Qt.PenStyle.DashLine))
+        p.drawArc(QRectF(cx - 62, cy - 62, 124, 124), int((-t * 1.5) * 16), int(90 * 16))
+        p.drawArc(QRectF(cx - 62, cy - 62, 124, 124), int((-t * 1.5 + 180) * 16), int(90 * 16))
+
+        # 4. Arc Reactor Stator Ring with 10 Triangular Segments (Iron Man Mark design)
+        stator_r = 46.0
+        for k in range(10):
+            ang = math.radians(k * 36 + t * 0.8)
+            x1 = cx + (stator_r - 4) * math.cos(ang)
+            y1 = cy + (stator_r - 4) * math.sin(ang)
+            x2 = cx + (stator_r + 4) * math.cos(ang)
+            y2 = cy + (stator_r + 4) * math.sin(ang)
+            seg_col = qcol(base_hex, 230 if (k % 2 == 0 or self._speaking) else 120)
+            p.setPen(QPen(seg_col, 2.0))
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+        # 5. Central Reactor Core with multi-layered glow
+        core_r = 30.0
+        c_grad = QRadialGradient(cx, cy, core_r)
+        c_grad.setColorAt(0.0, qcol("#ffffff", 250))
+        c_grad.setColorAt(0.3, qcol(base_hex, 240))
+        c_grad.setColorAt(0.7, qcol(core_hex, 220))
+        c_grad.setColorAt(1.0, qcol(C.BG, 255))
+        p.setBrush(QBrush(c_grad))
+        p.setPen(QPen(qcol(base_hex, 255), 1.8))
+        p.drawEllipse(QRectF(cx - core_r, cy - core_r, core_r * 2, core_r * 2))
+
+        # 6. Floating Energy Spark Particles
+        p.setPen(Qt.PenStyle.NoPen)
+        for pt in self._particles:
+            a = max(0, min(255, int(pt[4] * 230)))
+            p.setBrush(QBrush(qcol(base_hex, a)))
+            p.drawEllipse(QPointF(cx + pt[0], cy + pt[1]), 1.8, 1.8)
+
+        # 7. Core Emblem Text / State Acronym
+        p.setFont(QFont("Courier New", 7, QFont.Weight.Bold))
+        p.setPen(QPen(qcol("#ffffff" if self._speaking else base_hex, 230), 1))
+        
+        if self._muted:
+            txt = "MUTED"
+        elif self._speaking:
+            txt = "SPEAK"
+        elif self._state == "THINKING":
+            txt = "THINK"
+        elif self._state == "LISTENING":
+            txt = "READY"
+        else:
+            txt = "J.A.R.V.I.S"[:5]
+
+        p.drawText(QRectF(cx - 30, cy - 6, 60, 14), Qt.AlignmentFlag.AlignCenter, txt)
+
+
 class MainWindow(QMainWindow):
     _log_sig   = pyqtSignal(str)
     _state_sig = pyqtSignal(str)
@@ -1306,10 +1537,33 @@ class MainWindow(QMainWindow):
         if not self._ready:
             self._show_setup()
 
+        self._orb_widget = FloatingOrbWidget(self)
+
         sc_mute = QShortcut(QKeySequence("F4"), self)
         sc_mute.activated.connect(self._toggle_mute)
         sc_full = QShortcut(QKeySequence("F11"), self)
         sc_full.activated.connect(self._toggle_fullscreen)
+        sc_mini = QShortcut(QKeySequence("F9"), self)
+        sc_mini.activated.connect(self._minimize_to_orb)
+        sc_mini_ctrl = QShortcut(QKeySequence("Ctrl+M"), self)
+        sc_mini_ctrl.activated.connect(self._minimize_to_orb)
+
+    def _minimize_to_orb(self):
+        # Position orb at bottom right of screen if not moved
+        screen = QApplication.primaryScreen().availableGeometry()
+        if self._orb_widget.pos().x() == 0 and self._orb_widget.pos().y() == 0:
+            self._orb_widget.move(screen.width() - 210, screen.height() - 210)
+        self.hide()
+        self._orb_widget.set_state(self.hud.state)
+        self._orb_widget.set_muted(self._muted)
+        self._orb_widget.show()
+        self._orb_widget.raise_()
+
+    def _restore_from_orb(self):
+        self._orb_widget.hide()
+        self.show()
+        self.raise_()
+        self.activateWindow()
 
     def _toggle_fullscreen(self):
         if self.isFullScreen():
@@ -1419,6 +1673,25 @@ class MainWindow(QMainWindow):
         self._date_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
         right_col.addWidget(self._date_lbl)
         lay.addLayout(right_col)
+
+        lay.addSpacing(10)
+        mini_btn = QPushButton("⛶ MINI [F9]")
+        mini_btn.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        mini_btn.setFixedHeight(30)
+        mini_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        mini_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {C.PANEL2}; color: {C.PRI};
+                border: 1px solid {C.BORDER_B}; border-radius: 4px;
+                padding: 4px 10px; letter-spacing: 1px;
+            }}
+            QPushButton:hover {{
+                background: {C.PRI_GHO}; border: 1px solid {C.PRI}; color: #ffffff;
+            }}
+        """)
+        mini_btn.clicked.connect(self._minimize_to_orb)
+        lay.addWidget(mini_btn)
+
         return w
 
     def _tick_clock(self):
@@ -1613,6 +1886,17 @@ class MainWindow(QMainWindow):
         self._mute_btn.clicked.connect(self._toggle_mute)
         self._style_mute_btn()
         btn_row.addWidget(self._mute_btn)
+
+        orb_btn = QPushButton("⛶ MINI [F9]")
+        orb_btn.setFixedHeight(28)
+        orb_btn.setFont(QFont("Courier New", 7))
+        orb_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        orb_btn.setStyleSheet(f"""
+            QPushButton {{ background: transparent; color: {C.TEXT_MED}; border: 1px solid {C.BORDER}; border-radius: 4px; }}
+            QPushButton:hover {{ color: {C.PRI}; border: 1px solid {C.BORDER_B}; }}
+        """)
+        orb_btn.clicked.connect(self._minimize_to_orb)
+        btn_row.addWidget(orb_btn)
         
         fs_btn = QPushButton("⛶ FULLSCREEN [F11]")
         fs_btn.setFixedHeight(28)
@@ -1700,6 +1984,8 @@ class MainWindow(QMainWindow):
     def _toggle_mute(self):
         self._muted = not self._muted
         self.hud.muted = self._muted
+        if hasattr(self, '_orb_widget'):
+            self._orb_widget.set_muted(self._muted)
         self._style_mute_btn()
         if self._muted:
             self._apply_state("MUTED")
@@ -1738,6 +2024,8 @@ class MainWindow(QMainWindow):
     def _apply_state(self, state: str):
         self.hud.state    = state
         self.hud.speaking = (state == "SPEAKING")
+        if hasattr(self, '_orb_widget'):
+            self._orb_widget.set_state(state)
 
     def _check_config(self) -> bool:
         if not API_FILE.exists(): return False
