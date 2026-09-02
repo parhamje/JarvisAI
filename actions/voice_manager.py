@@ -24,27 +24,27 @@ VOICE_PRESETS = {
     "jarvis_british": {
         "gemini_voice": "Charon",
         "edge_voice": "en-GB-RyanNeural",
-        "description": "Deep British Sci-Fi JARVIS tone"
-    },
-    "jarvis_american": {
-        "gemini_voice": "Puck",
-        "edge_voice": "en-US-GuyNeural",
-        "description": "Fast, energetic American assistant tone"
-    },
-    "persian_male": {
-        "gemini_voice": "Charon",
-        "edge_voice": "fa-IR-FaridNeural",
-        "description": "Natural Persian male neural voice (Farid)"
-    },
-    "persian_female": {
-        "gemini_voice": "Aoede",
-        "edge_voice": "fa-IR-DilaraNeural",
-        "description": "Natural Persian female neural voice (Dilara)"
+        "description": "J.A.R.V.I.S — Paul Bettany Deep British Tone (Default)"
     },
     "fem_friday": {
         "gemini_voice": "Aoede",
         "edge_voice": "en-GB-SoniaNeural",
-        "description": "FRIDAY AI Assistant female tone"
+        "description": "F.R.I.D.A.Y — Kerry Condon Female Assistant Tone"
+    },
+    "jarvis_american": {
+        "gemini_voice": "Puck",
+        "edge_voice": "en-US-GuyNeural",
+        "description": "American Quick Assistant (Puck)"
+    },
+    "persian_male": {
+        "gemini_voice": "Charon",
+        "edge_voice": "fa-IR-FaridNeural",
+        "description": "Persian Male Neural Voice (Farid)"
+    },
+    "persian_female": {
+        "gemini_voice": "Aoede",
+        "edge_voice": "fa-IR-DilaraNeural",
+        "description": "Persian Female Neural Voice (Dilara)"
     }
 }
 
