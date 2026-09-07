@@ -37,10 +37,10 @@ BASE_DIR   = _base_dir()
 CONFIG_DIR = BASE_DIR / "config"
 API_FILE   = CONFIG_DIR / "api_keys.json"
 
-_DEFAULT_W, _DEFAULT_H = 1820, 860
-_MIN_W,     _MIN_H     = 1820, 860
-_LEFT_W  = 150
-_RIGHT_W = 340
+_DEFAULT_W, _DEFAULT_H = 1240, 740
+_MIN_W,     _MIN_H     = 960, 560
+_LEFT_W  = 130
+_RIGHT_W = 320
 
 _OS = platform.system()  # "Windows" | "Darwin" | "Linux"
 
@@ -116,7 +116,7 @@ class CameraWidget(QWidget):
         self._timer.timeout.connect(self._update_frame)
         self._active = False
 
-        self.setFixedHeight(200)
+        self.setFixedHeight(115)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"background: #000508; border: 2px solid {C.BORDER_B}; border-radius: 6px;")
 
@@ -145,7 +145,8 @@ class CameraWidget(QWidget):
             self._cam_manager.start()
             
             self._active = True
-            self._status.setText("● LIVE")
+            self.setFixedHeight(155)
+            self._status.setText("● LIVE FEED")
             self._status.setStyleSheet(f"color: {C.GREEN}; background: #001a0f; border: none; border-top: 1px solid {C.BORDER_B}; letter-spacing: 2px;")
             self._timer.start(66)  # ~15 fps
         except ImportError:
@@ -154,6 +155,7 @@ class CameraWidget(QWidget):
     def stop(self):
         self._active = False
         self._timer.stop()
+        self.setFixedHeight(115)
         if hasattr(self, '_cam_manager'):
             # We don't stop the camera manager here because the motion detector might need it!
             # self._cam_manager.stop() 
@@ -465,156 +467,179 @@ class HudCanvas(QWidget):
         p.fillRect(self.rect(), qcol(C.BG))
 
         W, H = self.width(), self.height()
-        cx, cy = W / 2, H / 2
         fw = min(W, H)
+        cx = W / 2.0
+        cy = H / 2.0 - 15.0  # optical center leaving space for status pill
+        t = self._tick
 
-        # grid dots
-        p.setPen(QPen(qcol(C.PRI_GHO), 1))
-        for x in range(0, W, 48):
-            for y in range(0, H, 48):
+        # Resolve state colors
+        if self.muted:
+            base_hex = C.MUTED_C
+            core_hex = "#3d0010"
+        elif self.speaking:
+            base_hex = C.ACC
+            core_hex = "#331600"
+        elif self.state == "THINKING":
+            base_hex = C.ACC2
+            core_hex = "#2b2200"
+        elif self.state == "LISTENING":
+            base_hex = C.GREEN
+            core_hex = "#002b18"
+        else:
+            base_hex = C.PRI
+            core_hex = "#001a2b"
+
+        # 1. Cybernetic Background Grid Dots
+        p.setPen(QPen(qcol(C.PRI_GHO, 100), 1))
+        for x in range(0, int(W), 40):
+            for y in range(0, int(H), 40):
                 p.drawPoint(x, y)
 
-        r_face = fw * 0.31
-
-        # halo glow
-        for i in range(10):
-            r   = r_face * (1.8 - i * 0.08)
-            frc = 1.0 - i / 10
-            a   = max(0, min(255, int(self._halo * 0.085 * frc)))
-            col = qcol(C.MUTED_C if self.muted else C.PRI, a)
-            p.setPen(QPen(col, 1.5)); p.setBrush(Qt.BrushStyle.NoBrush)
-            p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
-
-        # pulse rings
-        for pr in self._pulses:
-            a   = max(0, int(230 * (1.0 - pr / (fw * 0.74))))
-            col = qcol(C.MUTED_C if self.muted else C.PRI, a)
-            p.setPen(QPen(col, 1.5)); p.setBrush(Qt.BrushStyle.NoBrush)
-            p.drawEllipse(QRectF(cx - pr, cy - pr, pr * 2, pr * 2))
-
-        # spinning arc rings
-        for idx, (r_frac, w_r, arc_l, gap) in enumerate(
-            [(0.48, 3, 115, 78), (0.40, 2, 78, 55), (0.32, 1, 56, 40)]
-        ):
-            ring_r = fw * r_frac
-            base   = self._rings[idx]
-            a_val  = max(0, min(255, int(self._halo * (1.0 - idx * 0.18))))
-            col    = qcol(C.MUTED_C if self.muted else C.PRI, a_val)
-            p.setPen(QPen(col, w_r)); p.setBrush(Qt.BrushStyle.NoBrush)
-            angle = base
-            rect  = QRectF(cx - ring_r, cy - ring_r, ring_r * 2, ring_r * 2)
-            while angle < base + 360:
-                p.drawArc(rect, int(angle * 16), int(arc_l * 16))
-                angle += arc_l + gap
-
-        # scanners
-        sr = fw * 0.50
-        sa = min(255, int(self._halo * 1.5))
-        ex = 75 if self.speaking else 44
-        p.setPen(QPen(qcol(C.MUTED_C if self.muted else C.PRI, sa), 2.5))
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        srect = QRectF(cx - sr, cy - sr, sr * 2, sr * 2)
-        p.drawArc(srect, int(self._scan * 16), int(ex * 16))
-        p.setPen(QPen(qcol(C.ACC, sa // 2), 1.5))
-        p.drawArc(srect, int(self._scan2 * 16), int(ex * 16))
-
-        # tick marks
-        t_out, t_in = fw * 0.497, fw * 0.474
-        p.setPen(QPen(qcol(C.PRI, 140), 1))
-        for deg in range(0, 360, 10):
-            rad = math.radians(deg)
-            inn = t_in if deg % 30 == 0 else t_in + 6
-            p.drawLine(
-                QPointF(cx + t_out * math.cos(rad), cy - t_out * math.sin(rad)),
-                QPointF(cx + inn  * math.cos(rad), cy - inn  * math.sin(rad)),
-            )
-
-        # crosshair
-        ch_r, gap_h = fw * 0.51, fw * 0.16
-        p.setPen(QPen(qcol(C.PRI, int(self._halo * 0.5)), 1))
-        p.drawLine(QPointF(cx - ch_r, cy), QPointF(cx - gap_h, cy))
-        p.drawLine(QPointF(cx + gap_h, cy), QPointF(cx + ch_r, cy))
-        p.drawLine(QPointF(cx, cy - ch_r), QPointF(cx, cy - gap_h))
-        p.drawLine(QPointF(cx, cy + gap_h), QPointF(cx, cy + ch_r))
-
-        # corner brackets
+        # 2. Precision Corner HUD Brackets
         bl = 24
-        bc = qcol(C.PRI, 210)
-        hl, hr = cx - fw // 2, cx + fw // 2
-        ht, hb = cy - fw // 2, cy + fw // 2
-        p.setPen(QPen(bc, 2))
-        for bx, by, dx, dy in [(hl,ht,1,1),(hr,ht,-1,1),(hl,hb,1,-1),(hr,hb,-1,-1)]:
+        p.setPen(QPen(qcol(C.PRI, 130), 1.8))
+        for bx, by, dx, dy in [(18, 18, 1, 1), (W - 18, 18, -1, 1), (18, H - 18, 1, -1), (W - 18, H - 18, -1, -1)]:
             p.drawLine(QPointF(bx, by), QPointF(bx + dx * bl, by))
             p.drawLine(QPointF(bx, by), QPointF(bx, by + dy * bl))
 
-        # face
-        if self._face_px:
-            fsz    = int(fw * 0.62 * self._scale)
-            scaled = self._face_px.scaled(
-                fsz, fsz,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
+        # 3. Outer Glowing Ambient Pulse Halo
+        r_outer = fw * 0.40
+        h_rad = QRadialGradient(cx, cy, r_outer * 1.15)
+        h_rad.setColorAt(0.0, qcol(base_hex, min(180, int(self._halo * 0.65))))
+        h_rad.setColorAt(0.65, qcol(base_hex, min(80, int(self._halo * 0.22))))
+        h_rad.setColorAt(1.0, QColor(0, 0, 0, 0))
+        p.setBrush(QBrush(h_rad))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(QRectF(cx - r_outer * 1.15, cy - r_outer * 1.15, r_outer * 2.3, r_outer * 2.3))
+
+        # 4. Expanding Energy Waves (Shockwaves)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        for pr in self._pulses:
+            a = max(0, int(200 * (1.0 - pr / (fw * 0.48))))
+            p.setPen(QPen(qcol(base_hex, a), 1.4))
+            p.drawEllipse(QRectF(cx - pr, cy - pr, pr * 2, pr * 2))
+
+        # 5. Outer Precision Azimuth Scale (72 ticks)
+        p.setPen(QPen(qcol(C.PRI, 70), 1))
+        p.drawEllipse(QRectF(cx - r_outer, cy - r_outer, r_outer * 2, r_outer * 2))
+        for deg in range(0, 360, 5):
+            rad = math.radians(deg)
+            t_len = 7.0 if deg % 30 == 0 else 3.5
+            p.setPen(QPen(qcol(C.PRI, 150 if deg % 30 == 0 else 60), 1))
+            p.drawLine(
+                QPointF(cx + r_outer * math.cos(rad), cy + r_outer * math.sin(rad)),
+                QPointF(cx + (r_outer - t_len) * math.cos(rad), cy + (r_outer - t_len) * math.sin(rad))
             )
-            p.drawPixmap(int(cx - fsz / 2), int(cy - fsz / 2), scaled)
-        else:
-            orb_r = int(fw * 0.27 * self._scale)
-            oc    = (200, 0, 50) if self.muted else (0, 60, 110)
-            for i in range(8, 0, -1):
-                r2  = int(orb_r * i / 8)
-                frc = i / 8
-                a   = max(0, min(255, int(self._halo * 1.1 * frc)))
-                p.setBrush(QBrush(QColor(int(oc[0]*frc), int(oc[1]*frc), int(oc[2]*frc), a)))
-                p.setPen(Qt.PenStyle.NoPen)
-                p.drawEllipse(QRectF(cx - r2, cy - r2, r2 * 2, r2 * 2))
-            p.setPen(QPen(qcol(C.PRI, min(255, int(self._halo * 2))), 1))
-            p.setFont(QFont("Courier New", 13, QFont.Weight.Bold))
-            p.drawText(QRectF(cx - 80, cy - 14, 160, 28),
-                       Qt.AlignmentFlag.AlignCenter, "J.A.R.V.I.S")
 
-        # particles
-        for pt in self._particles:
-            a = max(0, min(255, int(pt[4] * 255)))
+        # 6. Kinetic Dual Counter-Rotating Arcs
+        r_arcs = fw * 0.35
+        p.setPen(QPen(qcol(base_hex, 210), 2.4))
+        p.drawArc(QRectF(cx - r_arcs, cy - r_arcs, r_arcs * 2, r_arcs * 2), int((t * 1.6) * 16), int(75 * 16))
+        p.drawArc(QRectF(cx - r_arcs, cy - r_arcs, r_arcs * 2, r_arcs * 2), int((t * 1.6 + 180) * 16), int(75 * 16))
+
+        r_arcs2 = fw * 0.31
+        p.setPen(QPen(qcol(C.PRI_DIM, 150), 1.3, Qt.PenStyle.DashLine))
+        p.drawArc(QRectF(cx - r_arcs2, cy - r_arcs2, r_arcs2 * 2, r_arcs2 * 2), int((-t * 1.2) * 16), int(95 * 16))
+        p.drawArc(QRectF(cx - r_arcs2, cy - r_arcs2, r_arcs2 * 2, r_arcs2 * 2), int((-t * 1.2 + 180) * 16), int(95 * 16))
+
+        # 7. 360° Circular Audio Equalizer Spectrum (48 Radial Bars)
+        r_spec_base = fw * 0.23
+        for i in range(48):
+            ang = math.radians(i * (360.0 / 48) + t * 0.4)
+            bar_len = random.uniform(8, 24) if self.speaking else (4.0 + 4.5 * math.sin(t * 0.08 + i * 0.32))
+            x1 = cx + r_spec_base * math.cos(ang)
+            y1 = cy + r_spec_base * math.sin(ang)
+            x2 = cx + (r_spec_base + bar_len) * math.cos(ang)
+            y2 = cy + (r_spec_base + bar_len) * math.sin(ang)
+            bar_col = qcol(C.ACC2 if (self.speaking and bar_len > 15) else base_hex, 220)
+            p.setPen(QPen(bar_col, 2.0))
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+        # 8. 10 Stator Electromagnetic Coils (Iron Man Mark VI / L)
+        r_stator = fw * 0.17
+        for k in range(10):
+            ang = math.radians(k * 36 + t * 0.5)
+            x1 = cx + (r_stator - 6) * math.cos(ang)
+            y1 = cy + (r_stator - 6) * math.sin(ang)
+            x2 = cx + (r_stator + 6) * math.cos(ang)
+            y2 = cy + (r_stator + 6) * math.sin(ang)
+            p.setPen(QPen(qcol(base_hex, 230 if k % 2 == 0 else 130), 2.8))
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QBrush(qcol(C.PRI, a)))
-            p.drawEllipse(QPointF(pt[0], pt[1]), 2.5, 2.5)
+            p.setBrush(QBrush(qcol("#ffffff", 220)))
+            p.drawEllipse(QPointF(x2, y2), 1.8, 1.8)
 
-        # status text
-        sy = cy + fw * 0.40
+        # 9. Central Palladium Core Housing
+        r_core = fw * 0.12 * self._scale
+        c_grad = QRadialGradient(cx, cy, r_core)
+        c_grad.setColorAt(0.0, qcol("#ffffff", 255))
+        c_grad.setColorAt(0.25, qcol(base_hex, 245))
+        c_grad.setColorAt(0.65, qcol(core_hex, 230))
+        c_grad.setColorAt(1.0, qcol(C.BG, 255))
+        p.setBrush(QBrush(c_grad))
+        p.setPen(QPen(qcol(base_hex, 255), 2.2))
+        p.drawEllipse(QRectF(cx - r_core, cy - r_core, r_core * 2, r_core * 2))
+
+        # 10. Mark-VI Iconic Reactor Triangle
+        tri_r = fw * 0.065 * self._scale
+        tri_path = QPainterPath()
+        for idx in range(3):
+            tang = math.radians(idx * 120 - 90 + t * 0.35)
+            tx = cx + tri_r * math.cos(tang)
+            ty = cy + tri_r * math.sin(tang)
+            if idx == 0:
+                tri_path.moveTo(tx, ty)
+            else:
+                tri_path.lineTo(tx, ty)
+        tri_path.closeSubpath()
+        p.setPen(QPen(qcol("#ffffff", 240), 1.8))
+        p.setBrush(QBrush(qcol(base_hex, 80)))
+        p.drawPath(tri_path)
+
+        # 11. Floating Quantum Spark Particles
+        p.setPen(Qt.PenStyle.NoPen)
+        for pt in self._particles:
+            a = max(0, min(255, int(pt[4] * 240)))
+            p.setBrush(QBrush(qcol(base_hex, a)))
+            p.drawEllipse(QPointF(pt[0], pt[1]), 2.2, 2.2)
+
+        # 12. Sleek Integrated Status Pill
+        sy = cy + fw * 0.36
+        pill_w, pill_h = 240, 26
+        pill_rect = QRectF(cx - pill_w / 2, sy, pill_w, pill_h)
+        p.setBrush(QBrush(QColor(0, 14, 24, 210)))
+        p.setPen(QPen(qcol(base_hex, 180), 1.2))
+        p.drawRoundedRect(pill_rect, 13, 13)
+
         if self.muted:
-            txt, col = "⊘  MUTED",     qcol(C.MUTED_C)
+            st_sym, st_txt = "⊘", "SECURE AUDIO · MUTED"
         elif self.speaking:
-            txt, col = "●  SPEAKING",  qcol(C.ACC)
+            st_sym, st_txt = "▲", "VOCALIZING · ACTIVE"
         elif self.state == "THINKING":
-            sym = "◈" if self._blink else "◇"
-            txt, col = f"{sym}  THINKING",   qcol(C.ACC2)
-        elif self.state == "PROCESSING":
-            sym = "▷" if self._blink else "▶"
-            txt, col = f"{sym}  PROCESSING", qcol(C.ACC2)
+            st_sym, st_txt = "◈" if self._blink else "◇", "CORE COMPUTING..."
         elif self.state == "LISTENING":
-            sym = "●" if self._blink else "○"
-            txt, col = f"{sym}  LISTENING",  qcol(C.GREEN)
+            st_sym, st_txt = "●" if self._blink else "○", "SYSTEM READY · LISTENING"
         else:
-            sym = "●" if self._blink else "○"
-            txt, col = f"{sym}  {self.state}", qcol(C.PRI)
+            st_sym, st_txt = "●", f"{self.state} · ACTIVE"
 
-        p.setPen(QPen(col, 1))
-        p.setFont(QFont("Courier New", 11, QFont.Weight.Bold))
-        p.drawText(QRectF(0, sy, W, 26), Qt.AlignmentFlag.AlignCenter, txt)
+        p.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        p.setPen(QPen(qcol(base_hex), 1))
+        p.drawText(pill_rect, Qt.AlignmentFlag.AlignCenter, f"{st_sym}  {st_txt}")
 
-        # waveform
-        wy = sy + 30
-        N, bw = 36, 8
-        wx0 = (W - N * bw) / 2
+        # 13. Dynamic Waveform Spectrum at Base
+        wy = sy + 32
+        N, bw = 36, 6
+        wx0 = cx - (N * bw) / 2
         for i in range(N):
             if self.muted:
                 hgt, cl = 2, qcol(C.MUTED_C)
             elif self.speaking:
-                hgt = random.randint(3, 20)
-                cl  = qcol(C.PRI) if hgt > 12 else qcol(C.PRI_DIM)
+                hgt = random.randint(3, 18)
+                cl = qcol(C.ACC2 if hgt > 12 else base_hex)
             else:
-                hgt = int(3 + 2 * math.sin(self._tick * 0.09 + i * 0.6))
-                cl  = qcol(C.BORDER_B)
-            p.fillRect(QRectF(wx0 + i * bw, wy + 20 - hgt, bw - 1, hgt), cl)
+                hgt = int(3 + 3 * math.sin(self._tick * 0.09 + i * 0.5))
+                cl = qcol(C.BORDER_B)
+            p.fillRect(QRectF(wx0 + i * bw, wy + 16 - hgt, bw - 1, hgt), cl)
 
 class MetricBar(QWidget):
 
@@ -1216,12 +1241,13 @@ class FloatingOrbWidget(QWidget):
     """
     Floating, frameless, translucent, always-on-top Arc-Reactor Mini HUD.
     Features:
-      - Iron Man Arc-Reactor core with glowing reactor blades & rotating arcs
-      - Dynamic state animations (LISTENING, SPEAKING, THINKING, MUTED)
-      - Audio-reactive waveform ripple & particle halo
-      - Seamless mouse-dragging across desktop
-      - Double-click to restore Full HUD
-      - Right-click context menu (Restore, Screen Scan, Mute, Exit)
+      - Stark Industries Mark-VI / Mark-L Arc-Reactor with glowing Palladium core
+      - 32-bar dynamic circular audio spectrum visualizer (Audio-reactive)
+      - 10-blade electromagnetic stator ring with illuminated copper/cyan conduits
+      - Kinetic dual counter-rotating precision tech arcs & compass ticks
+      - 3D Convex glass lens specular sheen & ambient plasma pulse halo
+      - Interactive hover expansion, smooth desktop drag & drop
+      - Double-click to restore Full HUD & Right-click sci-fi context menu
     """
     def __init__(self, main_window: 'MainWindow', parent=None):
         super().__init__(parent)
@@ -1232,26 +1258,29 @@ class FloatingOrbWidget(QWidget):
             Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedSize(180, 180)
+        self.setFixedSize(190, 190)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("J.A.R.V.I.S Arc-Reactor Core\n• Drag to move anywhere\n• Double-Click: Full HUD\n• Right-Click: Control Menu")
 
         self._state    = "LISTENING"
         self._muted    = False
         self._speaking = False
         self._tick     = 0
         self._blink    = False
-        self._halo     = 100.0
+        self._halo     = 110.0
+        self._hovered  = False
         self._drag_pos = None
 
         self._particles = [
             [random.uniform(-40, 40), random.uniform(-40, 40),
              random.uniform(-0.6, 0.6), random.uniform(-0.6, 0.6),
              random.uniform(0.2, 0.9)]
-            for _ in range(16)
+            for _ in range(20)
         ]
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._on_tick)
-        self._timer.start(30)
+        self._timer.start(25)
 
     def set_state(self, state: str):
         self._state    = state
@@ -1262,20 +1291,28 @@ class FloatingOrbWidget(QWidget):
         self._muted = muted
         self.update()
 
+    def enterEvent(self, event):
+        self._hovered = True
+        self.update()
+
+    def leaveEvent(self, event):
+        self._hovered = False
+        self.update()
+
     def _on_tick(self):
         self._tick += 1
         if self._tick % 16 == 0:
             self._blink = not self._blink
 
-        target_halo = 240.0 if self._speaking else (160.0 if self._state == "THINKING" else (50.0 if self._muted else 110.0))
+        target_halo = 260.0 if self._speaking else (180.0 if self._state == "THINKING" else (55.0 if self._muted else (160.0 if self._hovered else 115.0)))
         self._halo += (target_halo - self._halo) * 0.12
 
-        # Update floating energy particles
+        # Update floating quantum particles
         for pt in self._particles:
             pt[0] += pt[2]
             pt[1] += pt[3]
             dist = math.sqrt(pt[0]**2 + pt[1]**2)
-            if dist > 55 or dist < 12:
+            if dist > 65 or dist < 10:
                 pt[0] = random.uniform(-25, 25)
                 pt[1] = random.uniform(-25, 25)
                 pt[4] = random.uniform(0.3, 0.9)
@@ -1348,14 +1385,15 @@ class FloatingOrbWidget(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         W, H = self.width(), self.height()
         cx, cy = W / 2.0, H / 2.0
+        t = self._tick
 
         # State color resolution
         if self._muted:
             base_hex = C.MUTED_C
-            core_hex = "#4a0010"
+            core_hex = "#3d0010"
         elif self._speaking:
             base_hex = C.ACC
-            core_hex = "#331500"
+            core_hex = "#331600"
         elif self._state == "THINKING":
             base_hex = C.ACC2
             core_hex = "#2b2200"
@@ -1366,81 +1404,124 @@ class FloatingOrbWidget(QWidget):
             base_hex = C.PRI
             core_hex = "#001a2b"
 
-        # 1. Outer Translucent Dark Halo (Glass Shield)
-        p.setBrush(QBrush(QColor(0, 8, 16, 210)))
-        p.setPen(QPen(qcol(C.BORDER_B, 180), 1.5))
-        p.drawEllipse(QRectF(cx - 82, cy - 82, 164, 164))
-
-        # 2. Glowing Ambient Pulse Halo
-        h_rad = QRadialGradient(cx, cy, 80)
-        h_rad.setColorAt(0.0, qcol(base_hex, min(200, int(self._halo * 0.9))))
-        h_rad.setColorAt(0.5, qcol(base_hex, min(100, int(self._halo * 0.35))))
+        # 1. Outer Glowing Ambient Pulse Halo
+        h_rad = QRadialGradient(cx, cy, 92)
+        h_rad.setColorAt(0.0, qcol(base_hex, min(210, int(self._halo * 0.75))))
+        h_rad.setColorAt(0.65, qcol(base_hex, min(90, int(self._halo * 0.25))))
         h_rad.setColorAt(1.0, QColor(0, 0, 0, 0))
         p.setBrush(QBrush(h_rad))
         p.setPen(Qt.PenStyle.NoPen)
-        p.drawEllipse(QRectF(cx - 80, cy - 80, 160, 160))
+        p.drawEllipse(QRectF(cx - 92, cy - 92, 184, 184))
 
-        # 3. Outer Rotating Tech Arcs
-        t = self._tick
+        # 2. Outer Glass Bezel Disc (Obsidian Glass)
+        bg_grad = QRadialGradient(cx, cy, 84)
+        bg_grad.setColorAt(0.0, QColor(0, 14, 26, 235))
+        bg_grad.setColorAt(0.8, QColor(0, 6, 14, 245))
+        bg_grad.setColorAt(1.0, QColor(0, 2, 6, 255))
+        p.setBrush(QBrush(bg_grad))
+        p.setPen(QPen(qcol(base_hex, 200 if self._hovered else 130), 1.8))
+        p.drawEllipse(QRectF(cx - 82, cy - 82, 164, 164))
+
+        # 3. Micro-compass Precision Ticks (60 ticks)
+        r_out = 78.0
+        p.setPen(QPen(qcol(C.PRI, 90), 1))
+        for deg in range(0, 360, 6):
+            rad = math.radians(deg)
+            r_in = r_out - (4.0 if deg % 30 == 0 else 2.0)
+            p.drawLine(
+                QPointF(cx + r_out * math.cos(rad), cy + r_out * math.sin(rad)),
+                QPointF(cx + r_in * math.cos(rad), cy + r_in * math.sin(rad))
+            )
+        # 4 Cardinal Brackets
+        p.setPen(QPen(qcol(base_hex, 220), 2))
+        for deg in (0, 90, 180, 270):
+            rad = math.radians(deg)
+            p.drawPoint(QPointF(cx + 80 * math.cos(rad), cy + 80 * math.sin(rad)))
+
+        # 4. Kinetic Dual Counter-Rotating Tech Arcs
         p.setBrush(Qt.BrushStyle.NoBrush)
-        
-        # Arc Layer 1 (Clockwise)
-        p.setPen(QPen(qcol(base_hex, 190), 2.2))
-        p.drawArc(QRectF(cx - 72, cy - 72, 144, 144), int((t * 2.0) * 16), int(60 * 16))
-        p.drawArc(QRectF(cx - 72, cy - 72, 144, 144), int((t * 2.0 + 120) * 16), int(60 * 16))
-        p.drawArc(QRectF(cx - 72, cy - 72, 144, 144), int((t * 2.0 + 240) * 16), int(60 * 16))
+        p.setPen(QPen(qcol(base_hex, 210), 2.2))
+        p.drawArc(QRectF(cx - 72, cy - 72, 144, 144), int((t * 2.2) * 16), int(75 * 16))
+        p.drawArc(QRectF(cx - 72, cy - 72, 144, 144), int((t * 2.2 + 180) * 16), int(75 * 16))
 
-        # Arc Layer 2 (Counter-Clockwise Thin Dash)
-        p.setPen(QPen(qcol(C.PRI_DIM, 140), 1.2, Qt.PenStyle.DashLine))
-        p.drawArc(QRectF(cx - 62, cy - 62, 124, 124), int((-t * 1.5) * 16), int(90 * 16))
-        p.drawArc(QRectF(cx - 62, cy - 62, 124, 124), int((-t * 1.5 + 180) * 16), int(90 * 16))
+        p.setPen(QPen(qcol(C.PRI_DIM, 150), 1.2, Qt.PenStyle.DashLine))
+        p.drawArc(QRectF(cx - 64, cy - 64, 128, 128), int((-t * 1.6) * 16), int(95 * 16))
+        p.drawArc(QRectF(cx - 64, cy - 64, 128, 128), int((-t * 1.6 + 180) * 16), int(95 * 16))
 
-        # 4. Arc Reactor Stator Ring with 10 Triangular Segments (Iron Man Mark design)
-        stator_r = 46.0
-        for k in range(10):
-            ang = math.radians(k * 36 + t * 0.8)
-            x1 = cx + (stator_r - 4) * math.cos(ang)
-            y1 = cy + (stator_r - 4) * math.sin(ang)
-            x2 = cx + (stator_r + 4) * math.cos(ang)
-            y2 = cy + (stator_r + 4) * math.sin(ang)
-            seg_col = qcol(base_hex, 230 if (k % 2 == 0 or self._speaking) else 120)
-            p.setPen(QPen(seg_col, 2.0))
+        # 5. 32-Bar Circular Audio Equalizer Spectrum (Reactive)
+        r_spec_base = 52.0
+        for i in range(32):
+            ang = math.radians(i * (360.0 / 32) + t * 0.5)
+            bar_len = random.uniform(5, 15) if self._speaking else (3.5 + 3.0 * math.sin(t * 0.1 + i * 0.35))
+            x1 = cx + r_spec_base * math.cos(ang)
+            y1 = cy + r_spec_base * math.sin(ang)
+            x2 = cx + (r_spec_base + bar_len) * math.cos(ang)
+            y2 = cy + (r_spec_base + bar_len) * math.sin(ang)
+            bar_col = qcol(C.ACC2 if (self._speaking and bar_len > 10) else base_hex, 220)
+            p.setPen(QPen(bar_col, 1.8))
             p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
 
-        # 5. Central Reactor Core with multi-layered glow
-        core_r = 30.0
-        c_grad = QRadialGradient(cx, cy, core_r)
-        c_grad.setColorAt(0.0, qcol("#ffffff", 250))
-        c_grad.setColorAt(0.3, qcol(base_hex, 240))
-        c_grad.setColorAt(0.7, qcol(core_hex, 220))
+        # 6. 10 Stator Electromagnetic Coils (Iron Man Mark VI / L)
+        r_stator = 42.0
+        for k in range(10):
+            ang = math.radians(k * 36 + t * 0.6)
+            x1 = cx + (r_stator - 4) * math.cos(ang)
+            y1 = cy + (r_stator - 4) * math.sin(ang)
+            x2 = cx + (r_stator + 4) * math.cos(ang)
+            y2 = cy + (r_stator + 4) * math.sin(ang)
+            p.setPen(QPen(qcol(base_hex, 240 if k % 2 == 0 else 130), 2.5))
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(qcol("#ffffff", 220)))
+            p.drawEllipse(QPointF(x2, y2), 1.2, 1.2)
+
+        # 7. Central Palladium Core Housing
+        r_core = 28.0
+        c_grad = QRadialGradient(cx, cy, r_core)
+        c_grad.setColorAt(0.0, qcol("#ffffff", 255))
+        c_grad.setColorAt(0.25, qcol(base_hex, 245))
+        c_grad.setColorAt(0.65, qcol(core_hex, 230))
         c_grad.setColorAt(1.0, qcol(C.BG, 255))
         p.setBrush(QBrush(c_grad))
-        p.setPen(QPen(qcol(base_hex, 255), 1.8))
-        p.drawEllipse(QRectF(cx - core_r, cy - core_r, core_r * 2, core_r * 2))
+        p.setPen(QPen(qcol(base_hex, 255), 2.0))
+        p.drawEllipse(QRectF(cx - r_core, cy - r_core, r_core * 2, r_core * 2))
 
-        # 6. Floating Energy Spark Particles
+        # 8. Mark-VI Iconic Reactor Triangle
+        tri_r = 15.0
+        tri_path = QPainterPath()
+        for idx in range(3):
+            tang = math.radians(idx * 120 - 90 + t * 0.4)
+            tx = cx + tri_r * math.cos(tang)
+            ty = cy + tri_r * math.sin(tang)
+            if idx == 0:
+                tri_path.moveTo(tx, ty)
+            else:
+                tri_path.lineTo(tx, ty)
+        tri_path.closeSubpath()
+        p.setPen(QPen(qcol("#ffffff", 230), 1.6))
+        p.setBrush(QBrush(qcol(base_hex, 80)))
+        p.drawPath(tri_path)
+
+        # 9. Convex Glass Dome Sheen (3D Optical Lens)
+        lens_grad = QLinearGradient(cx - 50, cy - 80, cx + 50, cy + 20)
+        lens_grad.setColorAt(0.0, QColor(255, 255, 255, 55))
+        lens_grad.setColorAt(0.5, qcol(base_hex, 18))
+        lens_grad.setColorAt(1.0, QColor(0, 0, 0, 0))
+        p.setBrush(QBrush(lens_grad))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(QRectF(cx - 76, cy - 78, 152, 68))
+
+        # 10. Floating Quantum Spark Particles
         p.setPen(Qt.PenStyle.NoPen)
         for pt in self._particles:
             a = max(0, min(255, int(pt[4] * 230)))
             p.setBrush(QBrush(qcol(base_hex, a)))
             p.drawEllipse(QPointF(cx + pt[0], cy + pt[1]), 1.8, 1.8)
 
-        # 7. Core Emblem Text / State Acronym
+        # 11. Center Holographic Monogram
         p.setFont(QFont("Courier New", 7, QFont.Weight.Bold))
-        p.setPen(QPen(qcol("#ffffff" if self._speaking else base_hex, 230), 1))
-        
-        if self._muted:
-            txt = "MUTED"
-        elif self._speaking:
-            txt = "SPEAK"
-        elif self._state == "THINKING":
-            txt = "THINK"
-        elif self._state == "LISTENING":
-            txt = "READY"
-        else:
-            txt = "J.A.R.V.I.S"[:5]
-
-        p.drawText(QRectF(cx - 30, cy - 6, 60, 14), Qt.AlignmentFlag.AlignCenter, txt)
+        p.setPen(QPen(qcol("#ffffff", 240), 1))
+        p.drawText(QRectF(cx - 24, cy - 4, 48, 10), Qt.AlignmentFlag.AlignCenter, "JARVIS")
 
 
 class MainWindow(QMainWindow):
@@ -1477,7 +1558,7 @@ class MainWindow(QMainWindow):
 
         # Center panel
         self._center_panel = QWidget()
-        self._center_panel.setFixedSize(1280, 800)
+        self._center_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._center_panel.setStyleSheet(f"background: rgba(1, 12, 20, 200); border: 1px solid {C.BORDER_A}; border-radius: 10px;")
         self._center_panel.setGraphicsEffect(glow_effect(C.BORDER_B, 20))
         cp_lay = QVBoxLayout(self._center_panel)
@@ -1492,14 +1573,7 @@ class MainWindow(QMainWindow):
         self.hud.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         cp_lay.addWidget(self.hud, stretch=1)
 
-        # Standing By status
-        self._status_lbl = QLabel("STANDING BY")
-        self._status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._status_lbl.setFont(QFont("Courier New", 12, QFont.Weight.Bold))
-        self._status_lbl.setStyleSheet(f"color: {C.PRI_DIM}; letter-spacing: 3px; background: transparent; padding-bottom: 30px;")
-        cp_lay.addWidget(self._status_lbl)
-
-        root.addWidget(self._center_panel)
+        root.addWidget(self._center_panel, stretch=1)
 
         self._vps_mode = False
         self._vps_panel = QWidget(self.hud)
@@ -1878,37 +1952,42 @@ class MainWindow(QMainWindow):
         ic_row.setLayout(ic_row_lay)
         ic_lay.addWidget(ic_row)
         
-        btn_row = QHBoxLayout()
-        self._mute_btn = QPushButton("🎙 MIC")
-        self._mute_btn.setFixedHeight(28)
+        # Row 1: Full-width Microphone Toggle
+        self._mute_btn = QPushButton("🎙  MICROPHONE ACTIVE")
+        self._mute_btn.setFixedHeight(32)
         self._mute_btn.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
         self._mute_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._mute_btn.clicked.connect(self._toggle_mute)
         self._style_mute_btn()
-        btn_row.addWidget(self._mute_btn)
+        ic_lay.addWidget(self._mute_btn)
+
+        # Row 2: Secondary Quick-Action Buttons (50/50 split)
+        action_row = QHBoxLayout()
+        action_row.setSpacing(6)
 
         orb_btn = QPushButton("⛶ MINI [F9]")
         orb_btn.setFixedHeight(28)
-        orb_btn.setFont(QFont("Courier New", 7))
+        orb_btn.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
         orb_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         orb_btn.setStyleSheet(f"""
-            QPushButton {{ background: transparent; color: {C.TEXT_MED}; border: 1px solid {C.BORDER}; border-radius: 4px; }}
-            QPushButton:hover {{ color: {C.PRI}; border: 1px solid {C.BORDER_B}; }}
+            QPushButton {{ background: {C.PANEL2}; color: {C.TEXT_MED}; border: 1px solid {C.BORDER}; border-radius: 4px; }}
+            QPushButton:hover {{ color: {C.PRI}; border: 1px solid {C.BORDER_B}; background: {C.PRI_GHO}; }}
         """)
         orb_btn.clicked.connect(self._minimize_to_orb)
-        btn_row.addWidget(orb_btn)
+        action_row.addWidget(orb_btn)
         
-        fs_btn = QPushButton("⛶ FULLSCREEN [F11]")
+        fs_btn = QPushButton("⛶ FULL [F11]")
         fs_btn.setFixedHeight(28)
-        fs_btn.setFont(QFont("Courier New", 7))
+        fs_btn.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
         fs_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         fs_btn.setStyleSheet(f"""
-            QPushButton {{ background: transparent; color: {C.TEXT_MED}; border: 1px solid {C.BORDER}; border-radius: 4px; }}
-            QPushButton:hover {{ color: {C.PRI}; border: 1px solid {C.BORDER_B}; }}
+            QPushButton {{ background: {C.PANEL2}; color: {C.TEXT_MED}; border: 1px solid {C.BORDER}; border-radius: 4px; }}
+            QPushButton:hover {{ color: {C.PRI}; border: 1px solid {C.BORDER_B}; background: {C.PRI_GHO}; }}
         """)
         fs_btn.clicked.connect(self._toggle_fullscreen)
-        btn_row.addWidget(fs_btn)
-        ic_lay.addLayout(btn_row)
+        action_row.addWidget(fs_btn)
+
+        ic_lay.addLayout(action_row)
         
         lay.addWidget(_box("COMMAND INPUT", inp_container))
 
