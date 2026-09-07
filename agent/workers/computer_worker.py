@@ -14,12 +14,13 @@ class ComputerWorkerAgent(BaseWorkerAgent):
     async def process_action(self, action: str, payload: Dict[str, Any]) -> Any:
         loop = asyncio.get_running_loop()
 
-        if action == "execute_gui_task":
-            task_description = payload.get("task", "")
+        if action in ("execute_gui_task", "run", "task", "gui"):
+            task_description = payload.get("task") or payload.get("goal") or payload.get("description", "")
+            player = payload.get("player")
+            speak = payload.get("speak")
             result = await loop.run_in_executor(
                 None,
-                autonomous_computer,
-                task_description
+                lambda: autonomous_computer({"task": task_description}, player=player, speak=speak)
             )
             return {"result": result}
         else:

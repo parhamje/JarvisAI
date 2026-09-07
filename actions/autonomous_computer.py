@@ -9,8 +9,15 @@ try:
     import pyautogui
     _HAS_PYAUTOGUI = True
     pyautogui.FAILSAFE = True
+    pyautogui.PAUSE = 0.05
 except ImportError:
     _HAS_PYAUTOGUI = False
+
+try:
+    import pyperclip
+    _HAS_PYPERCLIP = True
+except ImportError:
+    _HAS_PYPERCLIP = False
 
 def get_base_dir():
     if getattr(sys, "frozen", False):
@@ -31,149 +38,297 @@ def _strip_fences(text: str) -> str:
 
 def run_agent(task_description: str, player=None, speak=None):
     if not _HAS_PYAUTOGUI:
-        msg = "PyAutoGUI is not installed. Please run pip install pyautogui."
+        msg = "PyAutoGUI is not installed. Please run: pip install pyautogui"
         if speak: speak(msg)
         return msg
 
     import google.generativeai as genai
     genai.configure(api_key=_get_api_key())
-    # gemini-2.5-flash is excellent for spatial understanding
     model = genai.GenerativeModel("gemini-2.5-flash")
 
     screen_width, screen_height = pyautogui.size()
-    max_steps = 15
+    max_steps = 18
     history = []
 
-    msg = f"Starting autonomous control for task: {task_description}"
+    msg = f"Starting autonomous desktop execution for: {task_description}"
     print(f"[AutoAgent] {msg}")
-    if speak: speak("Taking control of the mouse, Sir. Please do not move it.")
+
+    # 1. Non-Intrusive HUD Integration: Minimize full HUD to Mini-Orb so screen is unobstructed
+    if player is not None:
+        try:
+            win = getattr(player, "_win", player)
+            if hasattr(win, "_minimize_to_orb") and hasattr(win, "isVisible") and win.isVisible():
+                print("[AutoAgent] 🪟 Minimizing HUD to Arc-Reactor Mini Widget during task execution...")
+                win._minimize_to_orb()
+            if hasattr(win, "_apply_state"):
+                win._apply_state("THINKING")
+        except Exception as e:
+            print(f"[AutoAgent] HUD minimize note: {e}")
+
+    if speak:
+        speak("Taking control of the system to complete your request, Sir. Please keep your hands off the mouse.")
+
+    time.sleep(0.8)
 
     for step in range(max_steps):
-        print(f"[AutoAgent] Step {step+1}/{max_steps}")
+        print(f"\n[AutoAgent] ── Step {step+1}/{max_steps} ──")
         
-        # 1. Take a screenshot
-        screenshot = ImageGrab.grab()
-        # Resize if it's too huge to save tokens, though Gemini handles large images well.
-        # We will keep it full resolution for accuracy in bounding boxes.
-        
-        # 2. Build prompt
-        prompt = f"""You are an autonomous computer control agent.
-Your ultimate task is: {task_description}
+        # 1. Capture high-fidelity screenshot
+        try:
+            screenshot = ImageGrab.grab()
+        except Exception as e:
+            err = f"Screenshot capture error: {e}"
+            print(f"[AutoAgent] {err}")
+            if speak: speak("Error capturing screen, Sir.")
+            return err
 
-You are provided with a screenshot of the user's current screen.
-Resolution is {screen_width}x{screen_height}.
+        # 2. Build multi-modal spatial prompt
+        prompt = f"""You are JARVIS's Autonomous Computer Control & Vision Agent.
+Your ultimate goal is: {task_description}
 
-History of actions taken so far:
-{json.dumps(history, indent=2)}
+Resolution: {screen_width}x{screen_height} (Screenshot dimensions: {screenshot.width}x{screenshot.height}).
+Step: {step+1} of {max_steps}.
 
-You must decide the NEXT ACTION to take to progress towards the task.
-Output ONLY a JSON block containing your action. Do not wrap in markdown or add explanations outside the JSON.
+Action History:
+{json.dumps(history[-5:], indent=2) if history else "None yet"}
 
-Available actions:
-1. CLICK: Click on a specific UI element.
-   To click, you must find the element on the screen and provide a bounding box in normalized 1000x1000 coordinates [ymin, xmin, ymax, xmax].
+Inspect the screenshot with extreme visual precision.
+Decide the single best NEXT ACTION to progress towards achieving the goal.
+
+Output ONLY a raw JSON object matching one of the following schemas:
+
+1. CLICK (Left Click):
    {{
       "action": "CLICK",
       "box_2d": [ymin, xmin, ymax, xmax],
-      "reason": "Why you are clicking here"
+      "reason": "Description of element to click"
    }}
-2. TYPE: Type text using the keyboard (useful after clicking a text field).
+
+2. DOUBLE_CLICK (To open files, apps, desktop shortcuts):
+   {{
+      "action": "DOUBLE_CLICK",
+      "box_2d": [ymin, xmin, ymax, xmax],
+      "reason": "Description of element to double click"
+   }}
+
+3. RIGHT_CLICK (Context menu):
+   {{
+      "action": "RIGHT_CLICK",
+      "box_2d": [ymin, xmin, ymax, xmax],
+      "reason": "Why right clicking"
+   }}
+
+4. DRAG (Drag from source to destination):
+   {{
+      "action": "DRAG",
+      "start_box": [ymin, xmin, ymax, xmax],
+      "end_box": [ymin, xmin, ymax, xmax],
+      "reason": "Why dragging"
+   }}
+
+5. TYPE (Type text - supports Persian, English, symbols, URLs):
    {{
       "action": "TYPE",
-      "text": "The text to type",
+      "text": "Text to enter",
       "press_enter": true,
-      "reason": "Why you are typing this"
+      "reason": "Why typing this text"
    }}
-3. HOTKEY: Press a keyboard shortcut (e.g., "win", "enter", "ctrl", "c").
+
+6. KEY_PRESS (Single key like enter, esc, tab, backspace, space, up, down):
+   {{
+      "action": "KEY_PRESS",
+      "key": "enter",
+      "reason": "Why pressing key"
+   }}
+
+7. HOTKEY (Shortcut combination):
    {{
       "action": "HOTKEY",
-      "keys": ["win", "d"],
-      "reason": "Why you are pressing this hotkey"
+      "keys": ["win", "r"],
+      "reason": "Why pressing hotkey"
    }}
-4. DONE: The task is successfully completed.
+
+8. SCROLL (Scroll up or down):
+   {{
+      "action": "SCROLL",
+      "direction": "down",
+      "amount": 300,
+      "reason": "Why scrolling"
+   }}
+
+9. WAIT (Pause for application or webpage to load):
+   {{
+      "action": "WAIT",
+      "seconds": 2,
+      "reason": "Waiting for app/page to load"
+   }}
+
+10. DONE (Task is completed):
    {{
       "action": "DONE",
-      "reason": "Explain how the task was completed"
+      "reason": "Brief summary of how the task was successfully completed"
    }}
 
 IMPORTANT RULES:
-- When providing `box_2d`, provide [ymin, xmin, ymax, xmax] scaled to a 1000x1000 grid. E.g., if a button is exactly in the center, box_2d would be [490, 490, 510, 510].
-- Only output JSON.
+- All bounding boxes `box_2d`, `start_box`, `end_box` MUST be in normalized [ymin, xmin, ymax, xmax] on a 1000x1000 scale.
+- For text input, make sure the input field has been clicked and focused first.
+- Output ONLY valid JSON. No markdown code blocks, no trailing comments.
 """
 
         try:
             response = model.generate_content([prompt, screenshot])
             response_text = _strip_fences(response.text)
+            # Find json block if wrapped
+            json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
+            if json_match:
+                response_text = json_match.group(0)
             action_data = json.loads(response_text)
         except Exception as e:
-            err = f"Failed to get or parse response from Gemini: {e}"
+            err = f"Failed to get or parse action response: {e}"
             print(f"[AutoAgent] {err}")
-            return err
+            time.sleep(1)
+            continue
 
-        action_type = action_data.get("action")
+        action_type = action_data.get("action", "").upper()
         reason = action_data.get("reason", "")
-        print(f"[AutoAgent] Action: {action_type} | Reason: {reason}")
-        
-        history.append(action_data)
+        print(f"[AutoAgent] ▶ Action: {action_type} | Reason: {reason}")
+        history.append({"step": step+1, "action": action_type, "reason": reason})
+
+        def box_to_coords(box):
+            ymin, xmin, ymax, xmax = box
+            center_x_norm = (xmin + xmax) / 2 / 1000.0
+            center_y_norm = (ymin + ymax) / 2 / 1000.0
+            tx = int(center_x_norm * screen_width)
+            ty = int(center_y_norm * screen_height)
+            return max(0, min(screen_width - 1, tx)), max(0, min(screen_height - 1, ty))
 
         try:
             if action_type == "CLICK":
                 box = action_data.get("box_2d")
-                if not box or len(box) != 4:
-                    print("[AutoAgent] Invalid box_2d")
-                    continue
-                
-                ymin, xmin, ymax, xmax = box
-                
-                # Convert 1000x1000 grid to actual screen pixels
-                center_y_norm = (ymin + ymax) / 2 / 1000
-                center_x_norm = (xmin + xmax) / 2 / 1000
-                
-                target_x = int(center_x_norm * screen_width)
-                target_y = int(center_y_norm * screen_height)
-                
-                print(f"[AutoAgent] Clicking at ({target_x}, {target_y})")
-                pyautogui.moveTo(target_x, target_y, duration=0.5)
-                pyautogui.click()
-                time.sleep(1) # wait for UI to react
-                
+                if box and len(box) == 4:
+                    tx, ty = box_to_coords(box)
+                    print(f"[AutoAgent] 🖱 Clicking at ({tx}, {ty})")
+                    pyautogui.moveTo(tx, ty, duration=0.4)
+                    pyautogui.click()
+                    time.sleep(0.8)
+
+            elif action_type == "DOUBLE_CLICK":
+                box = action_data.get("box_2d")
+                if box and len(box) == 4:
+                    tx, ty = box_to_coords(box)
+                    print(f"[AutoAgent] 🖱 Double clicking at ({tx}, {ty})")
+                    pyautogui.moveTo(tx, ty, duration=0.4)
+                    pyautogui.doubleClick()
+                    time.sleep(1.0)
+
+            elif action_type == "RIGHT_CLICK":
+                box = action_data.get("box_2d")
+                if box and len(box) == 4:
+                    tx, ty = box_to_coords(box)
+                    print(f"[AutoAgent] 🖱 Right clicking at ({tx}, {ty})")
+                    pyautogui.moveTo(tx, ty, duration=0.4)
+                    pyautogui.rightClick()
+                    time.sleep(0.8)
+
+            elif action_type == "DRAG":
+                sbox = action_data.get("start_box")
+                ebox = action_data.get("end_box")
+                if sbox and ebox:
+                    sx, sy = box_to_coords(sbox)
+                    ex, ey = box_to_coords(ebox)
+                    print(f"[AutoAgent] 🖱 Dragging from ({sx}, {sy}) to ({ex}, {ey})")
+                    pyautogui.moveTo(sx, sy, duration=0.3)
+                    pyautogui.dragTo(ex, ey, duration=0.8, button='left')
+                    time.sleep(0.8)
+
             elif action_type == "TYPE":
                 text = action_data.get("text", "")
                 press_enter = action_data.get("press_enter", False)
-                print(f"[AutoAgent] Typing text...")
-                pyautogui.write(text, interval=0.02)
+                print(f"[AutoAgent] ⌨ Typing: {text[:60]!r}")
+                # Use clipboard paste to flawlessly support Persian, unicode, and paths
+                if _HAS_PYPERCLIP:
+                    try:
+                        pyperclip.copy(text)
+                        pyautogui.hotkey("ctrl", "v")
+                    except Exception:
+                        pyautogui.write(text, interval=0.02)
+                else:
+                    pyautogui.write(text, interval=0.02)
+
                 if press_enter:
+                    time.sleep(0.2)
                     pyautogui.press("enter")
-                time.sleep(1)
-                
+                time.sleep(0.8)
+
+            elif action_type == "KEY_PRESS":
+                key = action_data.get("key", "").lower().strip()
+                if key:
+                    print(f"[AutoAgent] ⌨ Pressing key: {key}")
+                    pyautogui.press(key)
+                    time.sleep(0.5)
+
             elif action_type == "HOTKEY":
-                keys = action_data.get("keys", [])
-                print(f"[AutoAgent] Pressing hotkeys: {keys}")
-                pyautogui.hotkey(*keys)
-                time.sleep(1)
-                
+                keys = [k.lower().strip() for k in action_data.get("keys", [])]
+                if keys:
+                    print(f"[AutoAgent] ⌨ Pressing hotkey: {'+'.join(keys)}")
+                    pyautogui.hotkey(*keys)
+                    time.sleep(0.8)
+
+            elif action_type == "SCROLL":
+                direction = action_data.get("direction", "down").lower()
+                amount = int(action_data.get("amount", 300))
+                clicks = -amount if direction == "down" else amount
+                print(f"[AutoAgent] 📜 Scrolling {direction} ({clicks})")
+                pyautogui.scroll(clicks)
+                time.sleep(0.6)
+
+            elif action_type == "WAIT":
+                sec = min(8, max(1, int(action_data.get("seconds", 2))))
+                print(f"[AutoAgent] ⏳ Waiting {sec}s...")
+                time.sleep(sec)
+
             elif action_type == "DONE":
-                msg = f"Task completed: {reason}"
-                print(f"[AutoAgent] {msg}")
-                if speak: speak("I have finished the task, Sir.")
+                msg = f"Task completed successfully: {reason}"
+                print(f"[AutoAgent] ✅ {msg}")
+                if player is not None:
+                    try:
+                        win = getattr(player, "_win", player)
+                        if hasattr(win, "_apply_state"):
+                            win._apply_state("LISTENING")
+                    except Exception:
+                        pass
+                if speak:
+                    speak("Task completed, Sir.")
                 return msg
-                
+
             else:
-                print(f"[AutoAgent] Unknown action: {action_type}")
-                
+                print(f"[AutoAgent] ⚠️ Unknown action: {action_type}")
+
         except pyautogui.FailSafeException:
-            msg = "Failsafe triggered (mouse moved to corner). Autonomous control aborted."
-            print(f"[AutoAgent] {msg}")
-            if speak: speak("Failsafe triggered. Aborting control.")
+            msg = "Failsafe triggered by user (mouse cursor in screen corner). Autonomous control aborted."
+            print(f"[AutoAgent] 🛑 {msg}")
+            if speak: speak("Failsafe triggered. Autonomous control aborted.")
             return msg
-            
-    msg = "Reached maximum steps without completing the task."
-    if speak: speak(msg)
+        except Exception as e:
+            print(f"[AutoAgent] Execution error during action {action_type}: {e}")
+
+    # Reached step limit
+    msg = f"Reached maximum steps ({max_steps}) without full completion."
+    print(f"[AutoAgent] ⚠️ {msg}")
+    if player is not None:
+        try:
+            win = getattr(player, "_win", player)
+            if hasattr(win, "_apply_state"):
+                win._apply_state("LISTENING")
+        except Exception:
+            pass
+    if speak:
+        speak("I have reached the step limit for this task, Sir.")
     return msg
 
 def autonomous_computer(parameters: dict, player=None, speak=None) -> str:
-    task = parameters.get("task", "")
+    task = parameters.get("task", "") or parameters.get("goal", "") or parameters.get("description", "")
     if not task:
         return "Please provide a task description."
-        
-    return run_agent(task, player, speak)
+    return run_agent(task, player=player, speak=speak)
+

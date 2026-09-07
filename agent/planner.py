@@ -93,7 +93,7 @@ youtube_video
   query: string (for play)
 
 autonomous_computer
-  task: string (required)
+  task: string (required) — complex multi-step desktop GUI tasks requiring visual inspection, app interaction, and mouse/keyboard actions (e.g. interacting with open apps, clicking specific buttons, filling app fields)
 
 media_control
   action: "play_pause" | "next_track" | "prev_track" | "volume_up" | "volume_down" | "volume_mute" (required)
