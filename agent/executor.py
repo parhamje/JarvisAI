@@ -218,7 +218,7 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None) -> str:
 
     elif tool == "autonomous_computer":
         from actions.autonomous_computer import autonomous_computer
-        return autonomous_computer(parameters=parameters, player=None) or "Computer agent finished."
+        return autonomous_computer(parameters=parameters, player=None, speak=speak) or "Computer agent finished."
 
     elif tool == "media_control":
         from actions.media_control import media_control

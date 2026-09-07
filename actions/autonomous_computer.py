@@ -50,6 +50,15 @@ def run_agent(task_description: str, player=None, speak=None):
     max_steps = 18
     history = []
 
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            hdesk = ctypes.windll.user32.OpenInputDesktop(0, False, 0x01FF)
+            if hdesk:
+                ctypes.windll.user32.SetThreadDesktop(hdesk)
+        except Exception:
+            pass
+
     msg = f"Starting autonomous desktop execution for: {task_description}"
     print(f"[AutoAgent] {msg}")
 
@@ -163,15 +172,23 @@ Output ONLY a raw JSON object matching one of the following schemas:
       "reason": "Waiting for app/page to load"
    }}
 
-10. DONE (Task is completed):
+10. LAUNCH_APP (Launch or start an application if it is not open or visible on screen):
+   {{
+      "action": "LAUNCH_APP",
+      "app_name": "notepad",
+      "reason": "Opening application to proceed with task"
+   }}
+
+11. DONE (Task is completed):
    {{
       "action": "DONE",
       "reason": "Brief summary of how the task was successfully completed"
    }}
 
-IMPORTANT RULES:
+IMPORTANT RULES & STRATEGIES:
+- If the required app is not open or visible: You can use LAUNCH_APP with the app name (e.g. "notepad", "calc", "spotify", "chrome"), or use HOTKEY ["win", "r"] and TYPE the app name, or click on taskbar / desktop icon.
+- For typing text, make sure the target input field or document area has been clicked and focused first.
 - All bounding boxes `box_2d`, `start_box`, `end_box` MUST be in normalized [ymin, xmin, ymax, xmax] on a 1000x1000 scale.
-- For text input, make sure the input field has been clicked and focused first.
 - Output ONLY valid JSON. No markdown code blocks, no trailing comments.
 """
 
@@ -286,6 +303,17 @@ IMPORTANT RULES:
                 sec = min(8, max(1, int(action_data.get("seconds", 2))))
                 print(f"[AutoAgent] ⏳ Waiting {sec}s...")
                 time.sleep(sec)
+
+            elif action_type == "LAUNCH_APP":
+                app_name = action_data.get("app_name", "").strip()
+                print(f"[AutoAgent] 🚀 Launching application: {app_name}")
+                if app_name:
+                    import subprocess
+                    try:
+                        subprocess.Popen(f"start {app_name}", shell=True)
+                    except Exception as e:
+                        print(f"[AutoAgent] Error launching {app_name}: {e}")
+                time.sleep(1.5)
 
             elif action_type == "DONE":
                 msg = f"Task completed successfully: {reason}"

@@ -145,9 +145,10 @@ TOOL_DECLARATIONS = [
     {
         "name": "open_app",
         "description": (
-            "Opens any application on the computer. "
-            "Use this whenever the user asks to open, launch, or start any app, "
-            "website, or program. Always call this tool — never just say you opened it."
+            "Opens an application on the computer (e.g. 'open Chrome', 'open Spotify'). "
+            "CRITICAL: Use this ONLY when the user ONLY wants to launch an app and does NOT ask to type, search, click, or interact inside it. "
+            "If the user asks to open an app AND type text, write notes, search, or click buttons (e.g. 'open notepad and write hello', 'open spotify and play X'), "
+            "DO NOT use open_app — ALWAYS call autonomous_computer instead."
         ),
         "parameters": {
             "type": "OBJECT",
@@ -256,11 +257,21 @@ TOOL_DECLARATIONS = [
     },
     {
         "name": "autonomous_computer",
-        "description": "Full PC control agent. Uses computer vision to 'see' the screen and perform clicks/typing to achieve complex desktop tasks.",
+        "description": (
+            "Full autonomous PC vision-to-action agent. Takes complete control of the mouse cursor and keyboard, "
+            "analyzes the screen with Computer Vision in a dynamic loop, and performs clicks, double clicks, "
+            "right clicks, drag-and-drop, typing (in Persian or English), hotkeys, and multi-step UI navigation across any Windows desktop software "
+            "(e.g. Notepad, Spotify, Chrome, File Explorer, settings, desktop shortcuts). "
+            "ALWAYS use this tool whenever the user asks to interact with the screen, control the mouse/keyboard, "
+            "open an app AND type into it, click buttons on desktop apps, or automate any multi-step GUI task."
+        ),
         "parameters": {
             "type": "OBJECT",
             "properties": {
-                "task": {"type": "STRING", "description": "The goal/task for the computer agent to achieve."}
+                "task": {
+                    "type": "STRING",
+                    "description": "Complete description of what the autonomous agent should accomplish on screen."
+                }
             },
             "required": ["task"]
         }
@@ -413,7 +424,7 @@ TOOL_DECLARATIONS = [
     },
     {
         "name": "computer_control",
-        "description": "Direct computer control: type, click, hotkeys, scroll, move mouse, screenshots, find elements on screen.",
+        "description": "Direct single computer control command (single click at known coords, hotkey, scroll). For any task requiring visual observation, app interaction, typing into apps, or multi-step mouse actions, ALWAYS use autonomous_computer instead.",
         "parameters": {
             "type": "OBJECT",
             "properties": {
@@ -858,7 +869,7 @@ class JarvisLive:
                 result = r or "Done."
 
             elif name == "autonomous_computer":
-                r = await loop.run_in_executor(None, lambda: autonomous_computer(parameters=args, player=self.ui))
+                r = await loop.run_in_executor(None, lambda: autonomous_computer(parameters=args, player=self.ui, speak=self.speak))
                 result = r or "Computer agent finished."
 
             elif name == "media_control":
