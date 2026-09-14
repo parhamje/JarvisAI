@@ -11,6 +11,7 @@ if [ -f "jarvis.pid" ]; then
 fi
 
 pkill -f "vps_relay.py" 2>/dev/null || true
+fuser -k 8765/tcp 8080/tcp 2>/dev/null || true
 echo "=================================================================="
 echo "✅ Jarvis 24/7 Service has been stopped."
 echo "=================================================================="
