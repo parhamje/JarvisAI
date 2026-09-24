@@ -24,21 +24,28 @@ def analyze_screen(parameters: dict, player=None) -> str:
     prompt = parameters.get("prompt", "Please describe what is currently visible on my screen. Pay attention to any open applications, specific text, or error messages.")
     
     try:
-        # Capture screen
-        screenshot = ImageGrab.grab()
-        
-        # Resize to max 1024 on longest edge to save bandwidth/tokens
-        max_dim = 1024
-        if screenshot.width > max_dim or screenshot.height > max_dim:
-            screenshot.thumbnail((max_dim, max_dim))
-            
-        # Convert to RGB (in case of RGBA) and then to Base64 JPEG
-        if screenshot.mode != 'RGB':
-            screenshot = screenshot.convert('RGB')
-            
-        buffered = io.BytesIO()
-        screenshot.save(buffered, format="JPEG", quality=80)
-        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        # Zero-latency frame from rolling buffer if available
+        img_str = ""
+        try:
+            from actions.vision_buffer import vision_buffer
+            frame = vision_buffer.get_latest_frame(max_age=3.5)
+            if frame and frame.base64_str:
+                img_str = frame.base64_str
+        except Exception:
+            pass
+
+        if not img_str:
+            # Fallback capture
+            screenshot = ImageGrab.grab()
+            max_dim = 1024
+            if screenshot.width > max_dim or screenshot.height > max_dim:
+                screenshot.thumbnail((max_dim, max_dim))
+            if screenshot.mode != 'RGB':
+                screenshot = screenshot.convert('RGB')
+            buffered = io.BytesIO()
+            screenshot.save(buffered, format="JPEG", quality=80)
+            img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
         
         headers = {
             "Authorization": f"Bearer {api_key}",

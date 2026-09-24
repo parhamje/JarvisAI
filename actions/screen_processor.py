@@ -106,6 +106,13 @@ def _compress(img_bytes: bytes, source_format: str = "PNG") -> tuple[bytes, str]
         return img_bytes, f"image/{source_format.lower()}"
 
 def _capture_screen() -> tuple[bytes, str]:
+    try:
+        from actions.vision_buffer import vision_buffer
+        frame = vision_buffer.get_latest_frame(max_age=3.5)
+        if frame and frame.jpeg_bytes:
+            return frame.jpeg_bytes, "image/jpeg"
+    except Exception:
+        pass
 
     if not _MSS:
         raise RuntimeError("mss is not installed. Run: pip install mss")

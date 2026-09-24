@@ -49,6 +49,10 @@ from actions.telegram_control  import telegram_control
 from actions.mcp_client        import mcp_client
 from actions.wake_word         import start_wake_word, stop_wake_word
 from memory.vector_memory      import store as vm_store, recall as vm_recall, sync_from_json
+from actions.acoustic_guard    import acoustic_guard
+from actions.push_to_talk      import ptt
+from actions.vision_buffer     import vision_buffer
+from actions.safety_guard      import safety_guard
 
 
 def get_base_dir():
@@ -669,6 +673,28 @@ TOOL_DECLARATIONS = [
             "required": ["category", "key", "value"]
         }
     },
+    {
+        "name": "get_task_status",
+        "description": "Checks the status and progress of running background autonomous agent tasks (autonomous_computer, browser, dev agent). Use when the user asks about progress or what tasks are active.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "task_id": {"type": "STRING", "description": "Specific task ID to check (optional)."}
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "cancel_task",
+        "description": "Cancels or terminates a running background autonomous agent task. Use when user asks to stop, abort, or cancel a background task.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "task_id": {"type": "STRING", "description": "Specific task ID to cancel, or leave empty to stop all active tasks."}
+            },
+            "required": []
+        }
+    },
 ]
 
 class JarvisLive:
@@ -685,6 +711,11 @@ class JarvisLive:
         self.ui.on_vps_toggle   = self._on_vps_toggle
         self._turn_done_event: asyncio.Event | None = None
         self.tg_bridge = None
+
+        # ── Background Agent Task Registry ("Talk While It Works") ────────────
+        self.active_tasks: dict[str, dict] = {}
+        self._task_counter = 0
+        self._task_lock = threading.Lock()
 
         # ── Telegram bridge turn-routing ──────────────────────────────────────
         # When a command arrives from Telegram, the next completed turn's
@@ -743,6 +774,7 @@ class JarvisLive:
                 except Exception:
                     break
         self.set_speaking(False)
+        acoustic_guard.on_playback_stop()
 
     def speak(self, text: str):
         if not self._loop or not self.session:
@@ -806,6 +838,22 @@ class JarvisLive:
         print(f"[JARVIS] 🔧 {name}  {args}")
         self.ui.set_state("THINKING")
 
+        # ── 1. Safety Guard Check ─────────────────────────────────────────────
+        is_safe, safety_warning = safety_guard.check_safety(name, args)
+        if not is_safe:
+            print(f"[JARVIS] ⚠️ SafetyGuard blocked {name}: {safety_warning}")
+            self.ui.write_log(f"SEC: Blocked — {safety_warning}")
+            if not self.ui.muted:
+                self.ui.set_state("LISTENING")
+            return types.FunctionResponse(
+                id=fc.id, name=name,
+                response={
+                    "status": "blocked",
+                    "reason": safety_warning,
+                    "instruction": "Inform the user that this action was blocked by safety protocols."
+                }
+            )
+
         if name == "save_memory":
             category = args.get("category", "notes")
             key      = args.get("key", "")
@@ -818,6 +866,88 @@ class JarvisLive:
             return types.FunctionResponse(
                 id=fc.id, name=name,
                 response={"result": "ok", "silent": True}
+            )
+
+        # ── 2. Background Autonomous Agent Tasks ("Talk While It Works") ───────
+        BG_TOOLS = ("autonomous_computer", "autonomous_browser", "agent_task", "dev_agent", "game_updater")
+        if name in BG_TOOLS:
+            task_desc = str(args.get("task") or args.get("goal") or args.get("description") or args.get("action") or name)
+            with self._task_lock:
+                self._task_counter += 1
+                task_id = f"task_{self._task_counter}"
+                task_info = {
+                    "id": task_id,
+                    "tool": name,
+                    "desc": task_desc,
+                    "start_time": time.time(),
+                    "status": "running",
+                    "cancel_requested": False,
+                }
+                self.active_tasks[task_id] = task_info
+
+            self.ui.write_log(f"AGNT: Dispatched #{self._task_counter} [{name}]: {task_desc[:60]}")
+            if hasattr(self.ui, "set_agent_status"):
+                self.ui.set_agent_status(f"⚡ {name}: {task_desc[:28]}...")
+
+            def _is_task_cancelled():
+                with self._task_lock:
+                    return self.active_tasks.get(task_id, {}).get("cancel_requested", False)
+
+            def _worker_runner():
+                try:
+                    if name == "autonomous_computer":
+                        r = autonomous_computer(parameters=args, player=self.ui, speak=self.speak, is_cancelled=_is_task_cancelled)
+                    elif name == "autonomous_browser":
+                        r = autonomous_browser(parameters=args, player=self.ui)
+                    elif name == "dev_agent":
+                        r = dev_agent(parameters=args, player=self.ui, speak=self.speak)
+                    elif name == "game_updater":
+                        r = game_updater(parameters=args, player=self.ui, speak=self.speak)
+                    elif name == "agent_task":
+                        from agent.task_queue import get_queue, TaskPriority
+                        priority_map = {"low": TaskPriority.LOW, "normal": TaskPriority.NORMAL, "high": TaskPriority.HIGH}
+                        priority = priority_map.get(args.get("priority", "normal").lower(), TaskPriority.NORMAL)
+                        tid = get_queue().submit(goal=args.get("goal", ""), priority=priority, speak=self.speak)
+                        r = f"Queued (ID: {tid})"
+                    else:
+                        r = "Done."
+
+                    elapsed = round(time.time() - task_info["start_time"], 1)
+                    with self._task_lock:
+                        task_info["status"] = "completed"
+                        task_info["result"] = str(r)
+                    self.ui.write_log(f"AGNT: Finished [{name}] in {elapsed}s: {str(r)[:70]}")
+                    self.speak(f"Sir, the background task '{task_desc}' has completed: {str(r)[:100]}")
+                except Exception as ex:
+                    with self._task_lock:
+                        task_info["status"] = "failed"
+                        task_info["error"] = str(ex)
+                    self.ui.write_log(f"AGNT: Failed [{name}]: {ex}")
+                    self.speak(f"Sir, the background task '{task_desc}' encountered an error: {str(ex)[:90]}")
+                finally:
+                    if hasattr(self.ui, "set_agent_status"):
+                        with self._task_lock:
+                            has_active = any(t["status"] == "running" for t in self.active_tasks.values())
+                        if not has_active:
+                            self.ui.set_agent_status(None)
+
+            threading.Thread(target=_worker_runner, name=f"AgentTask_{task_id}", daemon=True).start()
+
+            if not self.ui.muted:
+                self.ui.set_state("LISTENING")
+
+            return types.FunctionResponse(
+                id=fc.id, name=name,
+                response={
+                    "status": "started",
+                    "task_id": task_id,
+                    "task": task_desc,
+                    "message": (
+                        f"The task '{task_desc}' is now running in the background. "
+                        "Confirm to the user in ONE brief sentence in user's language that you have started it and are ready to chat. "
+                        "Do NOT wait or pause — the voice channel is completely live."
+                    )
+                }
             )
 
         loop   = asyncio.get_event_loop()
@@ -974,6 +1104,37 @@ class JarvisLive:
                 r = await loop.run_in_executor(None, lambda: mcp_client(parameters=args, player=self.ui, speak=self.speak))
                 result = r or "Done."
 
+            elif name == "get_task_status":
+                tid = args.get("task_id")
+                with self._task_lock:
+                    if tid and tid in self.active_tasks:
+                        t = self.active_tasks[tid]
+                        elapsed = int(time.time() - t["start_time"])
+                        result = f"Task {tid} ({t['desc']}): status={t['status']}, elapsed={elapsed}s"
+                    else:
+                        active = [t for t in self.active_tasks.values() if t["status"] == "running"]
+                        if not active:
+                            result = "No background tasks currently running."
+                        else:
+                            lines = [f"- #{t['id']} [{t['tool']}]: '{t['desc']}' (running for {int(time.time() - t['start_time'])}s)" for t in active]
+                            result = "Active background tasks:\n" + "\n".join(lines)
+
+            elif name == "cancel_task":
+                tid = args.get("task_id")
+                cancelled_count = 0
+                with self._task_lock:
+                    if tid and tid in self.active_tasks:
+                        self.active_tasks[tid]["cancel_requested"] = True
+                        cancelled_count += 1
+                        result = f"Task {tid} marked for cancellation."
+                    else:
+                        for t in self.active_tasks.values():
+                            if t["status"] == "running":
+                                t["cancel_requested"] = True
+                                cancelled_count += 1
+                        result = f"Marked {cancelled_count} active task(s) for cancellation."
+                self.ui.write_log(f"AGNT: {result}")
+
             elif name == "shutdown_jarvis":
                 self.ui.write_log("SYS: Shutdown requested.")
                 self.speak("Goodbye, Sir.")
@@ -1013,7 +1174,16 @@ class JarvisLive:
             if self.ui.muted:
                 return
 
+            # ── Push-To-Talk Gate (Ctrl+Space) ─────────────────────────────────
+            if not ptt.should_record():
+                return
+
             data = indata.tobytes()
+
+            # ── Acoustic Echo Guard (Self-Speech Suppression) ─────────────────
+            if acoustic_guard.should_suppress_input(data):
+                return
+
             # Calculate audio energy (RMS) to allow intelligent user barge-in over speaker output
             import numpy as np
             samples = np.frombuffer(data, dtype=np.int16)
@@ -1172,19 +1342,26 @@ class JarvisLive:
                         and self.audio_in_queue.empty()
                     ):
                         self.set_speaking(False)
+                        acoustic_guard.on_playback_stop()
                         self._turn_done_event.clear()
                     continue
                 self.set_speaking(True)
+                acoustic_guard.on_playback_chunk(chunk)
                 await asyncio.to_thread(stream.write, chunk)
         except Exception as e:
             print(f"[JARVIS] ❌ Play: {e}")
             raise
         finally:
             self.set_speaking(False)
+            acoustic_guard.on_playback_stop()
             stream.stop()
             stream.close()
 
     async def run(self):
+        # ── Start Background Perception & Input Subsystems ────────────────────
+        vision_buffer.start()
+        ptt.start_watcher()
+
         client = genai.Client(
             api_key=_get_api_key(),
             http_options={"api_version": "v1beta"}
@@ -1303,6 +1480,8 @@ def main():
             print("\n[JARVIS] Shutting down...")
         finally:
             stop_wake_word()
+            vision_buffer.stop()
+            ptt.stop_watcher()
 
     threading.Thread(target=runner, daemon=True).start()
     ui.root.mainloop()

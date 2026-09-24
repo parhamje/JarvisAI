@@ -36,7 +36,7 @@ def _strip_fences(text: str) -> str:
     text = re.sub(r"\r?\n?```\s*$", "", text)
     return text.strip()
 
-def run_agent(task_description: str, player=None, speak=None):
+def run_agent(task_description: str, player=None, speak=None, is_cancelled=None):
     if not _HAS_PYAUTOGUI:
         msg = "PyAutoGUI is not installed. Please run: pip install pyautogui"
         if speak: speak(msg)
@@ -80,6 +80,11 @@ def run_agent(task_description: str, player=None, speak=None):
     time.sleep(0.8)
 
     for step in range(max_steps):
+        if is_cancelled and is_cancelled():
+            msg = "Autonomous task cancelled by user request."
+            print(f"[AutoAgent] 🛑 {msg}")
+            if speak: speak("Autonomous desktop task cancelled, Sir.")
+            return msg
         print(f"\n[AutoAgent] ── Step {step+1}/{max_steps} ──")
         
         # 1. Capture high-fidelity screenshot
@@ -354,9 +359,9 @@ IMPORTANT RULES & STRATEGIES:
         speak("I have reached the step limit for this task, Sir.")
     return msg
 
-def autonomous_computer(parameters: dict, player=None, speak=None) -> str:
+def autonomous_computer(parameters: dict, player=None, speak=None, is_cancelled=None) -> str:
     task = parameters.get("task", "") or parameters.get("goal", "") or parameters.get("description", "")
     if not task:
         return "Please provide a task description."
-    return run_agent(task, player=player, speak=speak)
+    return run_agent(task, player=player, speak=speak, is_cancelled=is_cancelled)
 

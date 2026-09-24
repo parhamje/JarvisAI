@@ -71,7 +71,7 @@ desktop.ini
 # ---- Playwright ----
 playwright/.cache/
 
-# ---- Media / screenshots (uncomment if generated) ----
-# *.png
-# *.jpg
-# screenshots/
+# ---- Node / Frontend ----
+node_modules/
+**/node_modules/
+

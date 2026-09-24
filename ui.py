@@ -1193,6 +1193,47 @@ class SettingsOverlay(QWidget):
         self._inp_tg_phone = _mk_input("TELEGRAM PHONE", "+1234567890", "telegram_phone")
         self._inp_or_key = _mk_input("OPENROUTER API KEY", "sk-or-v1...", "openrouter_api_key", True)
 
+        # Voice Input Mode: Open Mic vs Push-to-Talk (Ctrl+Space)
+        layout.addSpacing(4)
+        layout.addWidget(_lbl("VOICE INPUT PROTOCOL", 8, color=C.TEXT_DIM, align=Qt.AlignmentFlag.AlignLeft))
+        ptt_row = QHBoxLayout()
+        ptt_row.setSpacing(6)
+        self._btn_mode_open = QPushButton("🎙 OPEN MIC (CONTINUOUS)")
+        self._btn_mode_open.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        self._btn_mode_open.setFixedHeight(30)
+        self._btn_mode_open.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self._btn_mode_ptt = QPushButton("⚡ PTT (CTRL+SPACE)")
+        self._btn_mode_ptt.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        self._btn_mode_ptt.setFixedHeight(30)
+        self._btn_mode_ptt.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self._ptt_val = bool(existing.get("push_to_talk", False))
+
+        def _update_mode_ui():
+            if self._ptt_val:
+                self._btn_mode_ptt.setStyleSheet(f"background: {C.PRI_GHO}; color: {C.PRI}; border: 1px solid {C.PRI}; border-radius: 4px;")
+                self._btn_mode_open.setStyleSheet(f"background: #000d12; color: {C.TEXT_DIM}; border: 1px solid {C.BORDER}; border-radius: 4px;")
+            else:
+                self._btn_mode_open.setStyleSheet(f"background: {C.PRI_GHO}; color: {C.GREEN}; border: 1px solid {C.GREEN}; border-radius: 4px;")
+                self._btn_mode_ptt.setStyleSheet(f"background: #000d12; color: {C.TEXT_DIM}; border: 1px solid {C.BORDER}; border-radius: 4px;")
+
+        def _set_open():
+            self._ptt_val = False
+            _update_mode_ui()
+
+        def _set_ptt():
+            self._ptt_val = True
+            _update_mode_ui()
+
+        self._btn_mode_open.clicked.connect(_set_open)
+        self._btn_mode_ptt.clicked.connect(_set_ptt)
+        _update_mode_ui()
+
+        ptt_row.addWidget(self._btn_mode_open)
+        ptt_row.addWidget(self._btn_mode_ptt)
+        layout.addLayout(ptt_row)
+
         layout.addSpacing(12)
 
         btn_row = QHBoxLayout()
@@ -1231,7 +1272,14 @@ class SettingsOverlay(QWidget):
         d["telegram_api_hash"] = self._inp_tg_hash.text().strip()
         d["telegram_phone"] = self._inp_tg_phone.text().strip()
         d["openrouter_api_key"] = self._inp_or_key.text().strip()
-        
+        d["push_to_talk"] = self._ptt_val
+
+        try:
+            from actions.push_to_talk import ptt
+            ptt.is_enabled = self._ptt_val
+        except Exception:
+            pass
+
         os.makedirs(CONFIG_DIR, exist_ok=True)
         API_FILE.write_text(json.dumps(d, indent=4), encoding="utf-8")
         self.done.emit()
@@ -1527,6 +1575,8 @@ class FloatingOrbWidget(QWidget):
 class MainWindow(QMainWindow):
     _log_sig   = pyqtSignal(str)
     _state_sig = pyqtSignal(str)
+    _agent_status_sig = pyqtSignal(str)
+    _ptt_sig   = pyqtSignal(bool)
 
     def __init__(self, face_path: str):
         super().__init__()
@@ -1568,6 +1618,24 @@ class MainWindow(QMainWindow):
         # Build Center Header
         cp_lay.addWidget(self._build_header())
 
+        # Background Agent Activity Banner
+        self._agent_banner = QLabel("")
+        self._agent_banner.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
+        self._agent_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._agent_banner.setFixedHeight(24)
+        self._agent_banner.setStyleSheet(f"""
+            QLabel {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #150a00, stop:0.5 #3d1c00, stop:1 #150a00);
+                color: {C.ACC2};
+                border-top: 1px solid {C.ACC};
+                border-bottom: 1px solid {C.ACC};
+                letter-spacing: 1px;
+                padding: 2px 10px;
+            }}
+        """)
+        self._agent_banner.hide()
+        cp_lay.addWidget(self._agent_banner)
+
         # Hud
         self.hud = HudCanvas(face_path)
         self.hud.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -1605,6 +1673,18 @@ class MainWindow(QMainWindow):
 
         self._log_sig.connect(self._log.append_log)
         self._state_sig.connect(self._apply_state)
+        self._agent_status_sig.connect(self._set_agent_status_slot)
+        self._ptt_sig.connect(self._on_ptt_key_state)
+
+        # Wire Push-To-Talk listener and load initial mode
+        try:
+            from actions.push_to_talk import ptt
+            if API_FILE.exists():
+                _cfg = json.loads(API_FILE.read_text(encoding="utf-8"))
+                ptt.is_enabled = bool(_cfg.get("push_to_talk", False))
+            ptt.add_listener(lambda pressed: self._ptt_sig.emit(pressed))
+        except Exception:
+            pass
 
         self._overlay: SetupOverlay | None = None
         self._ready = self._check_config()
@@ -1851,10 +1931,48 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'on_vps_toggle') and callable(self.on_vps_toggle):
                 self.on_vps_toggle(False)
 
+    def _set_agent_status_slot(self, txt: str):
+        if txt:
+            self._agent_banner.setText(txt)
+            self._agent_banner.show()
+        else:
+            self._agent_banner.hide()
+
+    def _on_ptt_key_state(self, pressed: bool):
+        try:
+            from actions.push_to_talk import ptt
+            if not ptt.is_enabled:
+                return
+            if self._muted:
+                return
+            if pressed:
+                self._mute_btn.setText("🎙 PTT: TRANSMITTING...")
+                self._mute_btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background: #002b18; color: {C.GREEN};
+                        border: 2px solid {C.GREEN}; border-radius: 4px; font-weight: bold;
+                    }}
+                """)
+                self.hud.state = "SPEAKING"
+                self.hud.update()
+            else:
+                self._mute_btn.setText("🎙 PTT: STANDBY [CTRL+SPACE]")
+                self._mute_btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background: #001018; color: {C.PRI};
+                        border: 1px solid {C.PRI_DIM}; border-radius: 4px;
+                    }}
+                    QPushButton:hover {{ border: 1px solid {C.PRI}; }}
+                """)
+                self.hud.state = "LISTENING"
+                self.hud.update()
+        except Exception:
+            pass
+
     def _show_settings(self):
         ov = SettingsOverlay(self.centralWidget())
         cw = self.centralWidget()
-        ow, oh = 460, 540
+        ow, oh = 480, 590
         ov.setGeometry(
             (cw.width()  - ow) // 2,
             (cw.height() - oh) // 2,
@@ -1868,7 +1986,8 @@ class MainWindow(QMainWindow):
         if self._overlay:
             self._overlay.hide()
             self._overlay = None
-        self._log_sig.emit("SYS: Settings saved. Please restart JARVIS to apply full changes.")
+        self._style_mute_btn()
+        self._log_sig.emit("SYS: Settings updated.")
 
     def _build_right_panel(self) -> QWidget:
         w = QWidget()
@@ -2083,6 +2202,20 @@ class MainWindow(QMainWindow):
                 }}
             """)
         else:
+            try:
+                from actions.push_to_talk import ptt
+                if ptt.is_enabled:
+                    self._mute_btn.setText("🎙 PTT: STANDBY [CTRL+SPACE]")
+                    self._mute_btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background: #001018; color: {C.PRI};
+                            border: 1px solid {C.PRI_DIM}; border-radius: 3px;
+                        }}
+                        QPushButton:hover {{ border: 1px solid {C.PRI}; }}
+                    """)
+                    return
+            except Exception:
+                pass
             self._mute_btn.setText("🎙  MICROPHONE ACTIVE")
             self._mute_btn.setStyleSheet(f"""
                 QPushButton {{
@@ -2202,3 +2335,6 @@ class JarvisUI:
     def stop_speaking(self):
         if not self.muted:
             self.set_state("LISTENING")
+
+    def set_agent_status(self, status: str | None):
+        self._win._agent_status_sig.emit(status or "")
