@@ -49,7 +49,13 @@ if [ -f "$VENV_DIR/bin/activate" ]; then
     PYTHON_CMD="$VENV_DIR/bin/python"
 else
     echo "[!] Fallback: using system pip with --break-system-packages..."
-    PIP_CMD="pip"
+    if command -v pip3 >/dev/null 2>&1; then
+        PIP_CMD="pip3"
+    elif command -v pip >/dev/null 2>&1; then
+        PIP_CMD="pip"
+    else
+        PIP_CMD="python3 -m pip"
+    fi
     PYTHON_CMD="python3"
 fi
 
