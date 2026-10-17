@@ -29,6 +29,12 @@ if [ ! -f "$PYTHON_BIN" ]; then
 fi
 
 echo "[Jarvis VPS] Using Python: $PYTHON_BIN"
+
+if ! "$PYTHON_BIN" -c "import websockets, telethon" 2>/dev/null; then
+    echo "[Jarvis VPS] Dependencies missing in $PYTHON_BIN. Auto-installing requirements..."
+    "$PYTHON_BIN" -m pip install --break-system-packages -r requirements_vps.txt 2>/dev/null || pip install --break-system-packages -r requirements_vps.txt 2>/dev/null || true
+fi
+
 echo "[Jarvis VPS] Starting Jarvis 24/7 background relay with auto-restart..."
 nohup bash -c "
     while true; do
