@@ -49,14 +49,13 @@ EMOJI_PATTERN = re.compile(
 
 def parse_reaction_command(raw_text: str):
     """
-    Parses commands like:
-      - 'جارویس 😂 ۳۰'
-      - 'جارویس 😂 30'
-      - 'جارویس 😂'
-      - '.react 😂 50'
-      - 'jarvis react 😂 30'
-      - 'جارویس ری‌اکت ❤️ ۲۰'
-      - 'جارویس ۳۰ تا 😂'
+    Parses dot commands like:
+      - '.react 😂 30'
+      - '.react 😂 ۳۰'
+      - '.react 😂'
+      - '.😂 30'
+      - '.😂 ۳۰'
+      - '.🔥 50'
     Returns (emoji, count) or None if not a reaction command.
     """
     if not raw_text:
@@ -65,34 +64,37 @@ def parse_reaction_command(raw_text: str):
     norm = text.translate(PERSIAN_ARABIC_DIGITS)
     lower = norm.lower()
 
-    is_explicit = False
-    for pref in ('.react', '!react', 'jarvis react', 'جارویس ری‌اکت', 'جارویس ری اکت', 'جارویس ری‌اکشن', 'جارویس ریپلای'):
-        if lower.startswith(pref):
-            is_explicit = True
-            norm = norm[len(pref):].strip()
-            break
-
-    if not is_explicit:
-        for pref in ('جارویس', 'jarvis'):
-            if lower.startswith(pref):
-                sub = norm[len(pref):].strip()
-                cleaned = re.sub(r'[\s\d]|ری‌اکت|ری اکت|ریپلای|ریپ|تا|react', '', sub)
-                emojis = EMOJI_PATTERN.findall(cleaned)
-                remainder_without_emojis = EMOJI_PATTERN.sub('', cleaned).strip()
-                if emojis and not remainder_without_emojis:
-                    norm = sub
-                    is_explicit = True
-                break
-
-    if not is_explicit:
+    if not lower.startswith((".", "!")):
         return None
 
-    emojis = EMOJI_PATTERN.findall(norm)
+    remainder = lower[1:].strip()
+    norm_remainder = norm[1:].strip()
+
+    is_react = False
+    if remainder.startswith(("react", "ری‌اکت", "ری اکت")):
+        for kw in ("react", "ری‌اکت", "ری اکت"):
+            if remainder.startswith(kw):
+                remainder = remainder[len(kw):].strip()
+                norm_remainder = norm_remainder[len(kw):].strip()
+                is_react = True
+                break
+    else:
+        # Shorthand: .<emoji> [count], e.g. .😂 30
+        cleaned = re.sub(r'[\s\d]|تا', '', remainder)
+        emojis = EMOJI_PATTERN.findall(cleaned)
+        remainder_without_emojis = EMOJI_PATTERN.sub('', cleaned).strip()
+        if emojis and not remainder_without_emojis:
+            is_react = True
+
+    if not is_react:
+        return None
+
+    emojis = EMOJI_PATTERN.findall(norm_remainder)
     if not emojis:
         return None
     emoji = emojis[0]
 
-    digits = re.findall(r'\b\d+\b', norm)
+    digits = re.findall(r'\b\d+\b', norm_remainder)
     count = 15
     if digits:
         try:
@@ -114,7 +116,7 @@ async def handle_reaction_spam(event, emoji: str, count: int):
                 "⚠️ **خطای ریپلای:**\n"
                 "برای ارسال رگباری ری‌اکت، باید این دستور را روی یکی از پیام‌های کاربر مورد نظر ریپلای (Reply) کنید!\n\n"
                 "💡 **مثال:** روی پیام طرف ریپلای کنید و بفرستید:\n"
-                "`جارویس 😂 ۳۰` یا `.react 😂 20`"
+                "`.react 😂 30` یا `.😂 ۳۰`"
             )
         except Exception:
             pass
@@ -623,23 +625,23 @@ async def start_telegram_listener():
             ]
             await event.edit(panel_text, buttons=buttons)
         elif data == "cat_ai":
-            await event.edit("🤖 **دستورات هوش مصنوعی:**\n▫️ `جارویس <سوال>` ➔ چت زنده هوش مصنوعی\n▫️ `جارویس ترجمه` ➔ ترجمه زنده متون\n▫️ `جارویس سرچ <موضوع>` ➔ سرچ زنده وب\n▫️ ریپلای رو ویس با `جارویس` ➔ شنیدن ویس و پاسخ صوتی", buttons=back_btn)
+            await event.edit("🤖 **دستورات هوش مصنوعی (پیشوند اختصاصی `جارویس`):**\n▫️ `جارویس <سوال>` ➔ چت زنده هوش مصنوعی\n▫️ `جارویس ترجمه کن ...` ➔ ترجمه زنده متون\n▫️ `جارویس سرچ کن ...` ➔ سرچ زنده وب\n▫️ ریپلای روی ویس با `جارویس` ➔ شنیدن ویس و پاسخ صوتی", buttons=back_btn)
         elif data == "cat_control":
             pc_st = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
-            await event.edit(f"🎛️ **دستورات کنترلی و وضعیت:**\n▫️ `جارویس پنل` ➔ همین پنل هوشمند\n▫️ `جارویس وضعیت` ➔ داشبورد رم سرور و پینگ\n▫️ `جارویس اسپیدتست` ➔ تست سرعت سرور\n\n🖥️ **اتصال پی‌سی خانگی:** `{pc_st}`", buttons=back_btn)
+            await event.edit(f"🎛️ **دستورات کنترلی و وضعیت (پیشوند `.`):**\n▫️ `.panel` ➔ پنل هوشمند\n▫️ `.ping` ➔ داشبورد رم سرور و پینگ\n▫️ `.speedtest` ➔ تست سرعت سرور\n\n🖥️ **اتصال پی‌سی خانگی:** `{pc_st}`", buttons=back_btn)
         elif data == "cat_afk":
             afk_st = f"🌙 فعال ({afk_reason})" if is_afk else "☀️ غیرفعال"
-            await event.edit(f"🌙 **تنظیمات حالت افلاین (AFK):**\n▫️ `جارویس افک` ➔ روشن کردن پاسخ خودکار (۱ بار برای هر مخاطب)\n▫️ `جارویس انلاین` ➔ خاموش کردن حالت افلاین\n\n📌 **وضعیت کنونی:** `{afk_st}`", buttons=back_btn)
+            await event.edit(f"🌙 **تنظیمات حالت آفلاین (پیشوند `.`):**\n▫️ `.afk [دلیل]` ➔ روشن کردن پاسخ خودکار (۱ بار برای هر مخاطب)\n▫️ `.notafk` ➔ خاموش کردن حالت آفلاین\n\n📌 **وضعیت کنونی:** `{afk_st}`", buttons=back_btn)
         elif data == "cat_game":
-            await event.edit("🎬 **مارول و بازی‌ها:**\n▫️ `جارویس دومزدی` ➔ روزشمار تیک‌تاک زنده Avengers: Doomsday\n▫️ `جارویس جی تی ای` ➔ روزشمار تیک‌تاک زنده GTA VI و هاد Vice City", buttons=back_btn)
+            await event.edit("🎬 **مارول و بازی‌ها (پیشوند `.`):**\n▫️ `.doomsday` ➔ روزشمار تیک‌تاک زنده Avengers: Doomsday\n▫️ `.gta` ➔ روزشمار تیک‌تاک زنده GTA VI و هاد Vice City", buttons=back_btn)
         elif data == "cat_media":
-            await event.edit("🎙️ **ویس و رسانه:**\n▫️ `جارویس ویس <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n▫️ `جارویس استیکر` ➔ تبدیل عکس به استیکر شفاف", buttons=back_btn)
+            await event.edit("🎙️ **ویس و رسانه (پیشوند `.`):**\n▫️ `.tts <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n▫️ `.sticker` (روی عکس) ➔ تبدیل عکس به استیکر شفاف", buttons=back_btn)
         elif data == "cat_time":
-            await event.edit("⏰ **یادآور و زمان:**\n▫️ `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه` ➔ تنظیم آلارم و نوتیفیکیشن\n▫️ ساعت زنده پروفایل تلگرام (۲۴ ساعته فعال)", buttons=back_btn)
+            await event.edit("⏰ **یادآور و زمان (پیشوند `.`):**\n▫️ `.remind 10m جلسه` ➔ تنظیم آلارم و نوتیفیکیشن\n▫️ ساعت زنده پروفایل تلگرام (۲۴ ساعته فعال)", buttons=back_btn)
         elif data == "cat_tools":
-            await event.edit("🛠️ **ابزارها و چت:**\n▫️ `جارویس 😂 ۳۰` (روی پیام) ➔ بمباران رگباری ری‌اکت\n▫️ `جارویس تایپ کن <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `جارویس کیست` ➔ شناسانامه کامل کاربر\n▫️ `جارویس پاک کن <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `جارویس ذخیره` ➔ ذخیره پیام در Saved Messages", buttons=back_btn)
+            await event.edit("🛠️ **ابزارها و چت (پیشوند `.`):**\n▫️ `.react 😂 30` (یا `.😂 ۳۰`) ➔ بمباران رگباری ری‌اکت\n▫️ `.type <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `.whois` (روی پیام) ➔ شناسنامه کامل کاربر\n▫️ `.purge <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `.save` (روی پیام) ➔ ذخیره پیام در Saved Messages", buttons=back_btn)
         elif data == "cat_help":
-            await event.edit("📖 **راهنمای کامل:**\nبرای مشاهده متن کامل راهنمای تمام دستورات، کلمه `راهنما جارویس` را تایپ کنید.", buttons=back_btn)
+            await event.edit("📖 **راهنمای کامل:**\nبرای مشاهده متن کامل راهنمای تمام دستورات، دستور `.help` را تایپ کنید.", buttons=back_btn)
         else:
             await event.edit("ℹ️ **بخش مربوطه فعال است.**", buttons=back_btn)
 
@@ -730,48 +732,38 @@ async def start_telegram_listener():
             await handle_reaction_spam(event, emoji, count)
             return
 
-        # 0. Help Guide Command (.help / jarvis help / جارویس راهنما / راهنما جارویس / راهنما)
-        if lower in (".help", "jarvis help", "جارویس راهنما", "راهنما جارویس", "راهنمای جارویس", "راهنما", "help"):
+        # 0. Help Guide Command (.help)
+        if lower in (".help", "!help", "help"):
             help_text = (
-                "🤖 **راهنمای کامل ربات سلف JARVIS AI** 🤖\n"
+                "🤖 **راهنمای جامع JARVIS AI & سلف‌بات تلگرام** 🤖\n"
                 "───────────────────────────\n\n"
-                "🎛️ **پنل کنترل تلگرام:**\n"
-                "▫️ `جارویس پنل` یا `.panel` ➔ داشبورد کنترلی زنده در تلگرام\n\n"
-                "🛡️ **مدیریت دسترسی افراد (Whitelist):**\n"
-                "▫️ `جارویس دسترسی <ID>` یا `.allow <ID>` ➔ اعطای مجوز چت با AI به آیدی عددی\n"
-                "▫️ `جارویس لغو دسترسی <ID>` یا `.disallow <ID>` ➔ لغو مجوز آیدی عددی\n"
-                "▫️ `جارویس لیست مجاز` یا `.allowed` ➔ مشاهده آیدی‌های دارای دسترسی\n\n"
-                "🎬 **دستورات خلاقانه مارول و GTA:**\n"
-                "▫️ `جارویس دومزدی` یا `jarvis doomsday` ➔ پروتکل انتقام‌جویان: روز قیامت (Doctor Doom)\n"
-                "▫️ `جارویس جی تی ای` یا `jarvis gta` ➔ هاد زنده Vice City و اخبار GTA VI\n\n"
-                "🌙 **حالت افلاین (AFK):**\n"
-                "▫️ `جارویس افک` یا `.afk` ➔ فعال‌سازی حالت غیرفعال (پاسخ ۱ بار برای هر مخاطب)\n"
-                "▫️ `جارویس انلاین` یا `.notafk` ➔ خروج از حالت افلاین\n\n"
-                "🎙️ **تولید ویس صوتی و پاسخ به ویس:**\n"
-                "▫️ `جارویس ویس <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n"
-                "▫️ ریپلای روی ویس با `جارویس` ➔ شنیدن ویس و پاسخ صوتی هوشمند\n\n"
-                "⏰ **یادآور هوشمند متنی:**\n"
-                "▫️ `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه` ➔ تنظیم آلارم و نوتیفیکشین\n\n"
-                "🔍 **جستجوی زنده وب:**\n"
-                "▫️ `جارویس سرچ <متن>` ➔ سرچ زنده در وب و خلاصه اخبار\n\n"
-                "🌐 **ترجمه زنده:**\n"
-                "▫️ `جارویس ترجمه` (روی پیام) ➔ ترجمه فوری به انگلیسی/فارسی\n\n"
-                "📊 **وضعیت سیستم و پینگ:**\n"
-                "▫️ `جارویس وضعیت` یا `.ping` ➔ داشبورد رم سرور، پینگ و اتصال PC\n"
-                "▫️ `جارویس اسپیدتست` یا `.speedtest` ➔ تست سرعت اینترنت VPS\n\n"
-                "🧹 **مدیریت و ابزارها:**\n"
-                "▫️ `جارویس 😂 ۳۰` یا `.react 😂 30` (روی پیام) ➔ بمباران رگباری ری‌اکت به پیام‌های طرف مقابل\n"
-                "▫️ `جارویس تایپ کن <متن>` ➔ انیمیشن تایپ زنده\n"
-                "▫️ `جارویس کیست` (روی پیام) ➔ شناسنامه کاربر\n"
-                "▫️ `جارویس استیکر` (روی عکس) ➔ تبدیل عکس به استیکر\n"
-                "▫️ `جارویس پاک کن <تعداد>` ➔ پاکسازی پیام‌ها\n"
-                "▫️ `جارویس ذخیره` ➔ ارسال پیام به Saved Messages"
+                "🧠 **هوش مصنوعی (پیشوند اختصاصی: `جارویس`):**\n"
+                "▫️ `جارویس <سوال>` ➔ چت زنده هوش مصنوعی و حل مسائل\n"
+                "▫️ ریپلای روی ویس با `جارویس` ➔ شنیدن ویس و پاسخ صوتی هوشمند\n"
+                "▫️ `جارویس ترجمه کن ...` ➔ ترجمه زنده و روان متون\n"
+                "▫️ `جارویس سرچ کن ...` ➔ جستجوی عمیق وب و تحلیل هوش مصنوعی\n\n"
+                "⚙️ **سلف‌بات و ابزارها (پیشوند استاندارد: `.`) :**\n"
+                "▫️ `.react <ایموجی> <تعداد>` (یا `.😂 ۳۰`) ➔ بمباران رگباری ری‌اکت روی پیام‌ها\n"
+                "▫️ `.ping` ➔ وضعیت رم VPS، پینگ و اتصال PC\n"
+                "▫️ `.speedtest` ➔ تست سرعت اینترنت سرور VPS\n"
+                "▫️ `.afk [دلیل]` / `.notafk` ➔ منشی خودکار حالت عدم حضور\n"
+                "▫️ `.purge <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n"
+                "▫️ `.save` ➔ ذخیره پیام در Saved Messages\n"
+                "▫️ `.whois` ➔ شناسنامه کامل کاربر ریپلای‌شده\n"
+                "▫️ `.sticker` ➔ تبدیل عکس ریپلای‌شده به استیکر شفاف\n"
+                "▫️ `.nocontext` ➔ ارسال پیام بدون نقل‌قول\n"
+                "▫️ `.type <متن>` ➔ تایپ انیمیشنی زنده متن\n"
+                "▫️ `.tts <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n"
+                "▫️ `.remind <زمان> <کار>` ➔ تنظیم آلارم و یادآور متنی (مثلاً `.remind 10m جلسه`)\n"
+                "▫️ `.panel` ➔ پنل کنترلی هوشمند تلگرام\n"
+                "▫️ `.allow <ID>` / `.disallow <ID>` / `.allowed` ➔ مدیریت دسترسی به هوش مصنوعی\n"
+                "▫️ `.doomsday` / `.gta` ➔ روزشمار تیک‌تاک زنده مارول و GTA VI"
             )
             await event.edit(help_text)
             return
 
-        # 0b. Telegram Interactive Control Panel (.panel / jarvis panel / جارویس پنل / پنل)
-        if lower in (".panel", "jarvis panel", "جارویس پنل", "پنل", "پنل کنترل"):
+        # 0b. Telegram Interactive Control Panel (.panel)
+        if lower in (".panel", "!panel", "panel"):
             start_t = time.time()
             ping_ms = round((time.time() - start_t) * 1000, 1)
             pc_status = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
@@ -793,13 +785,13 @@ async def start_telegram_listener():
                 "🎛️ **پنل کنترل و راهنمای هوشمند JARVIS AI** 🎛️\n"
                 "───────────────────────────\n"
                 "💡 *برای مشاهده هر بخش، عدد آن را تایپ کنید (مثلاً `1` یا `2`):*\n\n"
-                "1️⃣ 🤖 **هوش مصنوعی** ➔ چت زنده، ترجمه و پاسخ صوتی\n"
-                "2️⃣ 🎛️ **کنترلی و سرور** ➔ رم سرور، پینگ و اتصال PC\n"
-                "3️⃣ 🌙 **حالت AFK** ➔ تنظیمات پاسخگوی غیرفعال\n"
-                "4️⃣ 🎬 **مارول و بازی** ➔ روزشمار زنده Doomsday و GTA 6\n"
-                "5️⃣ 🎙️ **ویس و رسانه** ➔ ویس واقعی و استیکرساز\n"
-                "6️⃣ ⏰ **یادآور و زمان** ➔ آلارم متنی و ساعت زنده\n"
-                "7️⃣ 🛠️ **ابزارها و چت** ➔ تایپ انیمیشنی و پاکسازی\n"
+                "1️⃣ 🤖 **هوش مصنوعی** ➔ چت زنده، ترجمه و پاسخ صوتی (پیشوند: `جارویس`)\n"
+                "2️⃣ 🎛️ **کنترلی و سرور** ➔ رم سرور، پینگ و اتصال PC (پیشوند: `.`)\n"
+                "3️⃣ 🌙 **حالت AFK** ➔ تنظیمات پاسخگوی غیرفعال (پیشوند: `.`)\n"
+                "4️⃣ 🎬 **مارول و بازی** ➔ روزشمار زنده Doomsday و GTA 6 (پیشوند: `.`)\n"
+                "5️⃣ 🎙️ **ویس و رسانه** ➔ ویس واقعی و استیکرساز (پیشوند: `.`)\n"
+                "6️⃣ ⏰ **یادآور و زمان** ➔ آلارم متنی و ساعت زنده (پیشوند: `.`)\n"
+                "7️⃣ 🛠️ **ابزارها و چت** ➔ تایپ انیمیشنی، ری‌اکت و پاکسازی (پیشوند: `.`)\n"
                 "8️⃣ 📖 **راهنمای کامل** ➔ لیست تمام دستورات سیستم\n\n"
                 "───────────────────────────\n"
                 f"🖥️ **اتصال PC:** `{pc_status}` | 🌙 **AFK:** `{afk_status}`\n"
@@ -809,30 +801,30 @@ async def start_telegram_listener():
             return
 
         # Quick Menu Section Selectors (1 to 8)
-        if lower in ("1", "2", "3", "4", "5", "6", "7", "8", "جارویس 1", "جارویس 2", "جارویس 3", "جارویس 4", "جارویس 5", "جارویس 6", "جارویس 7", "جارویس 8"):
-            sec = lower.replace("جارویس", "").strip()
+        if lower in ("1", "2", "3", "4", "5", "6", "7", "8", ".1", ".2", ".3", ".4", ".5", ".6", ".7", ".8"):
+            sec = lower.replace(".", "").strip()
             if sec == "1":
-                await event.edit("🤖 **بخش ۱: هوش مصنوعی**\n─────────────────\n▫️ `جارویس <سوال>` ➔ چت زنده هوش مصنوعی\n▫️ `جارویس ترجمه` (روی پیام) ➔ ترجمه زنده متون\n▫️ `جارویس سرچ <موضوع>` ➔ سرچ زنده وب\n▫️ ریپلای روی ویس با `جارویس` ➔ شنیدن ویس و پاسخ صوتی\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+                await event.edit("🤖 **بخش ۱: هوش مصنوعی (پیشوند اختصاصی: `جارویس`)**\n─────────────────\n▫️ `جارویس <سوال>` ➔ چت زنده هوش مصنوعی\n▫️ `جارویس ترجمه کن ...` ➔ ترجمه زنده متون\n▫️ `جارویس سرچ کن ...` ➔ سرچ زنده وب\n▫️ ریپلای روی ویس با `جارویس` ➔ شنیدن ویس و پاسخ صوتی\n\n💡 *برای بازگشت بنویسید:* `.panel`")
             elif sec == "2":
                 pc_st = "✅ ONLINE" if connected_pc else "❌ OFFLINE"
-                await event.edit(f"🎛️ **بخش ۲: کنترلی و سرور**\n─────────────────\n▫️ `جارویس پنل` ➔ پنل اصلی کنترل\n▫️ `جارویس وضعیت` ➔ داشبورد رم سرور و پینگ\n▫️ `جارویس اسپیدتست` ➔ تست سرعت سرور VPS\n\n🖥️ **اتصال پی‌سی خانگی:** `{pc_st}`\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+                await event.edit(f"🎛️ **بخش ۲: کنترلی و سرور (پیشوند: `.`)**\n─────────────────\n▫️ `.panel` ➔ پنل اصلی کنترل\n▫️ `.ping` ➔ داشبورد رم سرور و پینگ\n▫️ `.speedtest` ➔ تست سرعت سرور VPS\n\n🖥️ **اتصال پی‌سی خانگی:** `{pc_st}`\n\n💡 *برای بازگشت بنویسید:* `.panel`")
             elif sec == "3":
                 afk_st = f"🌙 فعال ({afk_reason})" if is_afk else "☀️ غیرفعال"
-                await event.edit(f"🌙 **بخش ۳: تنظیمات حالت افلاین (AFK)**\n─────────────────\n▫️ `جارویس افک` ➔ روشن کردن پاسخ خودکار (۱ بار برای هر مخاطب)\n▫️ `جارویس انلاین` ➔ خاموش کردن حالت افلاین\n\n📌 **وضعیت کنونی:** `{afk_st}`\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+                await event.edit(f"🌙 **بخش ۳: تنظیمات حالت آفلاین (پیشوند: `.`)**\n─────────────────\n▫️ `.afk [دلیل]` ➔ روشن کردن پاسخ خودکار (۱ بار برای هر مخاطب)\n▫️ `.notafk` ➔ خاموش کردن حالت آفلاین\n\n📌 **وضعیت کنونی:** `{afk_st}`\n\n💡 *برای بازگشت بنویسید:* `.panel`")
             elif sec == "4":
-                await event.edit("🎬 **بخش ۴: مارول و بازی‌ها**\n─────────────────\n▫️ `جارویس دومزدی` ➔ روزشمار تیک‌تاک زنده Avengers: Doomsday\n▫️ `جارویس جی تی ای` ➔ روزشمار تیک‌تاک زنده GTA VI و هاد Vice City\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+                await event.edit("🎬 **بخش ۴: مارول و بازی‌ها (پیشوند: `.`)**\n─────────────────\n▫️ `.doomsday` ➔ روزشمار تیک‌تاک زنده Avengers: Doomsday\n▫️ `.gta` ➔ روزشمار تیک‌تاک زنده GTA VI و هاد Vice City\n\n💡 *برای بازگشت بنویسید:* `.panel`")
             elif sec == "5":
-                await event.edit("🎙️ **بخش ۵: ویس و رسانه**\n─────────────────\n▫️ `جارویس ویس <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n▫️ `جارویس استیکر` ➔ تبدیل عکس به استیکر شفاف\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+                await event.edit("🎙️ **بخش ۵: ویس و رسانه (پیشوند: `.`)**\n─────────────────\n▫️ `.tts <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n▫️ `.sticker` ➔ تبدیل عکس ریپلای‌شده به استیکر شفاف\n\n💡 *برای بازگشت بنویسید:* `.panel`")
             elif sec == "6":
-                await event.edit("⏰ **بخش ۶: یادآور و زمان**\n─────────────────\n▫️ `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه` ➔ تنظیم آلارم و نوتیفیکیشن\n▫️ ساعت زنده پروفایل تلگرام (۲۴ ساعته فعال)\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+                await event.edit("⏰ **بخش ۶: یادآور و زمان (پیشوند: `.`)**\n─────────────────\n▫️ `.remind 10m جلسه` ➔ تنظیم آلارم و نوتیفیکیشن\n▫️ ساعت زنده پروفایل تلگرام (۲۴ ساعته فعال)\n\n💡 *برای بازگشت بنویسید:* `.panel`")
             elif sec == "7":
-                await event.edit("🛠️ **بخش ۷: ابزارها و چت**\n─────────────────\n▫️ `جارویس 😂 ۳۰` (روی پیام) ➔ بمباران رگباری ری‌اکت\n▫️ `جارویس تایپ کن <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `جارویس کیست` ➔ شناسانامه کامل کاربر\n▫️ `جارویس پاک کن <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `جارویس ذخیره` ➔ ذخیره پیام در Saved Messages\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+                await event.edit("🛠️ **بخش ۷: ابزارها و چت (پیشوند: `.`)**\n─────────────────\n▫️ `.react 😂 30` (یا `.😂 ۳۰`) ➔ بمباران رگباری ری‌اکت\n▫️ `.type <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `.whois` ➔ شناسنامه کامل کاربر ریپلای‌شده\n▫️ `.purge <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `.save` ➔ ذخیره پیام در Saved Messages\n\n💡 *برای بازگشت بنویسید:* `.panel`")
             elif sec == "8":
-                await event.edit("📖 **بخش ۸: راهنمای کامل**\n─────────────────\nبرای مشاهده متن کامل راهنمای تمام دستورات، کلمه `راهنما جارویس` را تایپ کنید.\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+                await event.edit("📖 **بخش ۸: راهنمای کامل**\n─────────────────\nبرای مشاهده متن کامل راهنمای تمام دستورات، دستور `.help` را تایپ کنید.\n\n💡 *برای بازگشت بنویسید:* `.panel`")
             return
 
-        # 0c. Avengers: Doomsday Creative Command (Real Ticking Timer - In-Place Edit)
-        if lower in (".doomsday", "jarvis doomsday", "جارویس دومزدی", "دومزدی", "پروتکل دومزدی"):
+        # 0c. Avengers: Doomsday Creative Command (.doomsday)
+        if lower in (".doomsday", "!doomsday"):
             board = _get_countdown_str(2026, 12, 18)
             content = (
                 f"👑 **AVENGERS: DOOMSDAY (DOCTOR DOOM PROTOCOL)** 👑\n"
@@ -863,8 +855,8 @@ async def start_telegram_listener():
             asyncio.create_task(doomsday_ticker())
             return
 
-        # 0d. GTA VI Vice City HUD Creative Command (Real Ticking Timer - In-Place Edit)
-        if lower in (".gta", "jarvis gta", "جارویس جی تی ای", "gta6", "جی تی ای"):
+        # 0d. GTA VI Vice City HUD Creative Command (.gta)
+        if lower in (".gta", "!gta", ".gta6", "!gta6"):
             board = _get_countdown_str(2026, 11, 19)
             content = (
                 f"🌴 **GTA VI VICE CITY HUD INTELLIGENCE** 🌴\n"
@@ -897,8 +889,8 @@ async def start_telegram_listener():
             asyncio.create_task(gta_ticker())
             return
 
-        # 1b. Allowed Users Whitelist Commands (.allow / .disallow / .allowed / جارویس دسترسی)
-        if lower.startswith(".allow") or lower.startswith("jarvis allow") or lower.startswith("جارویس دسترسی"):
+        # 1b. Allowed Users Whitelist Commands (.allow / .disallow / .allowed)
+        if lower.startswith((".allow", "!allow")):
             parts = raw_text.split()
             if len(parts) > 1 and parts[1].isdigit():
                 target_uid = int(parts[1])
@@ -915,10 +907,10 @@ async def start_telegram_listener():
                 else:
                     await event.edit("⚠️ لطفاً آیدی عددی کاربر را وارد کنید یا روی پیام کاربر ریپلای بزنید.")
             else:
-                await event.edit("⚠️ **راهنما:** `.allow 123456789` یا ریپلای روی پیام با `جارویس دسترسی`")
+                await event.edit("⚠️ **راهنما:** `.allow 123456789` یا ریپلای روی پیام با `.allow`")
             return
 
-        if lower.startswith(".disallow") or lower.startswith("jarvis disallow") or lower.startswith("جارویس لغو دسترسی"):
+        if lower.startswith((".disallow", "!disallow")):
             parts = raw_text.split()
             if len(parts) > 1 and parts[1].isdigit():
                 target_uid = int(parts[1])
@@ -935,41 +927,41 @@ async def start_telegram_listener():
                 else:
                     await event.edit("⚠️ لطفاً آیدی عددی کاربر را وارد کنید یا روی پیام کاربر ریپلای بزنید.")
             else:
-                await event.edit("⚠️ **راهنما:** `.disallow 123456789` یا ریپلای روی پیام با `جارویس لغو دسترسی`")
+                await event.edit("⚠️ **راهنما:** `.disallow 123456789` یا ریپلای روی پیام با `.disallow`")
             return
 
-        if lower in (".allowed", "jarvis allowed", "جارویس لیست مجاز"):
+        if lower in (".allowed", "!allowed"):
             if not allowed_users:
-                await event.edit("📜 **لیست کاربران مجاز خالی است.**\nبرای اضافه کردن آیدی بنویسید: `جارویس دسترسی <ID>`")
+                await event.edit("📜 **لیست کاربران مجاز خالی است.**\nبرای اضافه کردن آیدی بنویسید: `.allow <ID>`")
             else:
                 u_list = "\n".join([f"▫️ `{uid}`" for uid in allowed_users])
                 await event.edit(f"📜 **لیست کاربران مجاز جهت چت با JARVIS:**\n───────────────────────────\n{u_list}\n\n💡 این کاربران می‌توانند با ارسال `جارویس <سوال>` با AI گفتگو کنند.")
             return
 
-        # 1. AFK Commands (.afk / .notafk / جارویس افک / جارویس انلاین / افک)
-        if lower.startswith(".afk") or lower.startswith("jarvis afk") or lower.startswith("جارویس افک") or lower == "افک":
+        # 1. AFK Commands (.afk / .notafk)
+        if lower.startswith((".afk", "!afk")):
             reason = raw_text.split(maxsplit=1)[1] if len(raw_text.split()) > 1 else "Busy / Away"
             is_afk = True
             afk_reason = reason
             afk_start_time = time.time()
             afk_notified_chats.clear()  # Reset notified list for new AFK session
             try:
-                await event.edit(f"🌙 **حالت افلاین فعال شد!**\n📌 دلیل: `{afk_reason}`\n📌 پاسخ خودکار برای مخاطبین فعال است.")
+                await event.edit(f"🌙 **حالت آفلاین فعال شد!**\n📌 دلیل: `{afk_reason}`\n📌 پاسخ خودکار برای مخاطبین فعال است.")
             except Exception:
-                await tg_client.send_message(event.chat_id, f"🌙 **حالت افلاین فعال شد!**\n📌 دلیل: `{afk_reason}`")
+                await tg_client.send_message(event.chat_id, f"🌙 **حالت آفلاین فعال شد!**\n📌 دلیل: `{afk_reason}`")
             return
 
-        if lower.startswith(".notafk") or lower.startswith("jarvis back") or lower.startswith("جارویس انلاین") or lower == "انلاین":
+        if lower.startswith((".notafk", "!notafk", ".back", "!back")):
             is_afk = False
             afk_notified_chats.clear()
             try:
-                await event.edit("☀️ **حالت افلاین خاموش شد. خوش آمدید!**")
+                await event.edit("☀️ **حالت آفلاین خاموش شد. خوش آمدید!**")
             except Exception:
-                await tg_client.send_message(event.chat_id, "☀️ **حالت افلاین خاموش شد. خوش آمدید!**")
+                await tg_client.send_message(event.chat_id, "☀️ **حالت آفلاین خاموش شد. خوش آمدید!**")
             return
 
-        # 2. Ping & Status Command (.ping / jarvis status / جارویس وضعیت)
-        if lower in (".ping", "jarvis status", "جارویس وضعیت", "جارویس پینگ"):
+        # 2. Ping & Status Command (.ping)
+        if lower in (".ping", "!ping", ".status", "!status"):
             start_t = time.time()
             await event.edit("🏓 *Calculating latency...*")
             ping_ms = round((time.time() - start_t) * 1000, 1)
@@ -996,8 +988,8 @@ async def start_telegram_listener():
             )
             return
 
-        # 3. Speedtest Command (.speedtest / جارویس اسپیدتست)
-        if lower in (".speedtest", "jarvis speedtest", "جارویس اسپیدتست"):
+        # 3. Speedtest Command (.speedtest)
+        if lower in (".speedtest", "!speedtest"):
             await event.edit("🚀 *Running VPS Speedtest... Please wait.*")
             loop = asyncio.get_running_loop()
             def _run_speedtest():
@@ -1010,8 +1002,8 @@ async def start_telegram_listener():
             await event.edit(f"🚀 **VPS INTERNET SPEEDTEST**\n\n```\n{st_result}\n```")
             return
 
-        # 4. Quick Purge Command (.purge <n> / جارویس پاک کن <n>)
-        if lower.startswith(".purge") or lower.startswith("جارویس پاک کن"):
+        # 4. Quick Purge Command (.purge <n>)
+        if lower.startswith((".purge", "!purge")):
             parts = raw_text.split()
             count = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 5
             await event.delete()
@@ -1021,8 +1013,8 @@ async def start_telegram_listener():
                 await tg_client.delete_messages(event.chat_id, my_msgs)
             return
 
-        # 5. Quick Save Command (.save / جارویس ذخیره)
-        if lower in (".save", "jarvis save", "جارویس ذخیره"):
+        # 5. Quick Save Command (.save)
+        if lower in (".save", "!save"):
             reply_msg = await event.get_reply_message()
             if reply_msg:
                 await reply_msg.forward_to("me")
@@ -1031,8 +1023,8 @@ async def start_telegram_listener():
                 await event.delete()
             return
 
-        # 6. Instant Translator (.tr / jarvis translate)
-        if lower.startswith(".tr") or lower.startswith("jarvis translate") or lower.startswith("جارویس ترجمه"):
+        # 6. Instant Translator (.tr)
+        if lower.startswith((".tr", "!tr")):
             reply_msg = await event.get_reply_message()
             target_text = reply_msg.raw_text if reply_msg else raw_text.split(maxsplit=1)[-1]
             await event.edit("🌐 *Translating...*")
@@ -1041,8 +1033,8 @@ async def start_telegram_listener():
             await event.edit(f"🌐 **TRANSLATION:**\n\n{translated}")
             return
 
-        # 7. Voice Note Reply (.tts / jarvis voice / جارویس ویس)
-        if lower.startswith(".tts") or lower.startswith("jarvis voice") or lower.startswith("جارویس ویس"):
+        # 7. Voice Note Reply (.tts <text>)
+        if lower.startswith((".tts", "!tts")):
             cmd_text = raw_text.split(maxsplit=1)[1] if len(raw_text.split()) > 1 else "Hello Parham!"
             await event.edit("🎙️ *Generating Voice Note...*")
             audio_file = "/tmp/jarvis_voice.mp3"
@@ -1056,8 +1048,8 @@ async def start_telegram_listener():
                 await event.edit("❌ Failed to generate audio.")
                 return
 
-        # 8. Live Web Search (.search / jarvis search / جارویس سرچ)
-        if lower.startswith(".search") or lower.startswith("jarvis search") or lower.startswith("جارویس سرچ"):
+        # 8. Live Web Search (.search <query>)
+        if lower.startswith((".search", "!search")):
             query = raw_text.split(maxsplit=1)[1] if len(raw_text.split()) > 1 else "latest news"
             await event.edit(f"🔍 *Searching web for:* `{query}`...")
             loop = asyncio.get_running_loop()
@@ -1065,35 +1057,28 @@ async def start_telegram_listener():
             await event.edit(f"🌐 **WEB SEARCH RESULTS:**\n\n{search_res}")
             return
 
-        # 8b. Smart Reminder Command (.remind <time> <task> / جارویس <زمان> دیگه یادم بنداز <کار>)
-        if lower.startswith(".remind") or "یادم بنداز" in lower:
+        # 8b. Smart Reminder Command (.remind <time> <task>)
+        if lower.startswith((".remind", "!remind")):
             parts = raw_text.split()
-            # Extract time & task text
             time_str = "10m"
             task_text = "Check task"
-            
-            if lower.startswith(".remind"):
-                if len(parts) >= 3:
-                    time_str = parts[1]
-                    task_text = " ".join(parts[2:])
-            elif "یادم بنداز" in lower:
-                # e.g. "جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه"
-                sub_parts = raw_text.split("یادم بنداز")
-                time_part = sub_parts[0].replace("جارویس", "").replace("دیگه", "").strip()
-                task_text = sub_parts[1].strip() if len(sub_parts) > 1 else "یادآوری مهم"
-                time_str = time_part if time_part else "10m"
+            if len(parts) >= 3:
+                time_str = parts[1]
+                task_text = " ".join(parts[2:])
+            elif len(parts) == 2:
+                time_str = parts[1]
 
             delay_sec = parse_time_str(time_str)
             if delay_sec > 0:
                 asyncio.create_task(schedule_reminder(event.chat_id, delay_sec, task_text))
                 await event.edit(f"⏰ **یادآور با موفقیت تنظیم شد!**\n📌 کار: _{task_text}_\n⏳ زمان: `{delay_sec // 60}` دقیقه دیگر.")
             else:
-                await event.edit("⚠️ فرمت زمان نامعتبر است. مثال: `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه`")
+                await event.edit("⚠️ فرمت زمان نامعتبر است. مثال: `.remind 10m رفتن به جلسه`")
             return
 
-        # 9. Animated Typewriter Effect (.type <text> / جارویس تایپ کن <متن>)
-        if lower.startswith(".type") or lower.startswith("جارویس تایپ کن"):
-            target_text = raw_text.split(maxsplit=2 if lower.startswith("جارویس تایپ کن") else 1)[-1]
+        # 9. Animated Typewriter Effect (.type <text>)
+        if lower.startswith((".type", "!type")):
+            target_text = raw_text.split(maxsplit=1)[-1]
             typed_so_far = ""
             for char in target_text:
                 typed_so_far += char
@@ -1108,16 +1093,16 @@ async def start_telegram_listener():
                 pass
             return
 
-        # 10. Forward Without Quote (.nocontext / جارویس فوروارد بدون نام)
-        if lower.startswith(".nocontext") or lower.startswith("جارویس فوروارد بدون نام"):
+        # 10. Forward Without Quote (.nocontext)
+        if lower.startswith((".nocontext", "!nocontext")):
             reply_msg = await event.get_reply_message()
             if reply_msg:
                 await event.delete()
                 await tg_client.send_message(event.chat_id, reply_msg)
             return
 
-        # 11. User Profile Info (.whois / جارویس کیست)
-        if lower.startswith(".whois") or lower.startswith("جارویس کیست"):
+        # 11. User Profile Info (.whois)
+        if lower.startswith((".whois", "!whois")):
             reply_msg = await event.get_reply_message()
             target_user = None
             if reply_msg:
@@ -1144,8 +1129,8 @@ async def start_telegram_listener():
                 await event.edit(info_card)
             return
 
-        # 12. Quick Photo to Sticker (.sticker / جارویس استیکر)
-        if lower.startswith(".sticker") or lower.startswith("جارویس استیکر"):
+        # 12. Quick Photo to Sticker (.sticker)
+        if lower.startswith((".sticker", "!sticker")):
             reply_msg = await event.get_reply_message()
             if reply_msg and reply_msg.media:
                 await event.edit("🖼️ *Converting photo to sticker...*")
@@ -1165,7 +1150,7 @@ async def start_telegram_listener():
             await event.edit("⚠️ Please reply to a photo to convert it to a sticker.")
             return
 
-        # ── General Trigger Matching (Jarvis Self-Bot AI) ────────────────────
+        # ── General Trigger Matching (Jarvis AI Core) ────────────────────────
         matched_trigger = None
         for t in TRIGGERS:
             if t in lower:
@@ -1210,7 +1195,7 @@ async def start_telegram_listener():
             if not cmd:
                 cmd = "سلام"
 
-        print(f"[VPS Relay] Self-Bot Triggered: '{raw_text}' -> Command: '{cmd}'")
+        print(f"[VPS Relay] Jarvis AI Triggered: '{raw_text}' -> Command: '{cmd}'")
 
         if connected_pc:
             try:

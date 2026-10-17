@@ -49,14 +49,13 @@ EMOJI_PATTERN = re.compile(
 
 def parse_reaction_command(raw_text: str):
     """
-    Parses commands like:
-      - 'جارویس 😂 ۳۰'
-      - 'جارویس 😂 30'
-      - 'جارویس 😂'
-      - '.react 😂 50'
-      - 'jarvis react 😂 30'
-      - 'جارویس ری‌اکت ❤️ ۲۰'
-      - 'جارویس ۳۰ تا 😂'
+    Parses dot commands like:
+      - '.react 😂 30'
+      - '.react 😂 ۳۰'
+      - '.react 😂'
+      - '.😂 30'
+      - '.😂 ۳۰'
+      - '.🔥 50'
     Returns (emoji, count) or None if not a reaction command.
     """
     if not raw_text:
@@ -65,34 +64,37 @@ def parse_reaction_command(raw_text: str):
     norm = text.translate(PERSIAN_ARABIC_DIGITS)
     lower = norm.lower()
 
-    is_explicit = False
-    for pref in ('.react', '!react', 'jarvis react', 'جارویس ری‌اکت', 'جارویس ری اکت', 'جارویس ری‌اکشن', 'جارویس ریپلای'):
-        if lower.startswith(pref):
-            is_explicit = True
-            norm = norm[len(pref):].strip()
-            break
-
-    if not is_explicit:
-        for pref in ('جارویس', 'jarvis'):
-            if lower.startswith(pref):
-                sub = norm[len(pref):].strip()
-                cleaned = re.sub(r'[\s\d]|ری‌اکت|ری اکت|ریپلای|ریپ|تا|react', '', sub)
-                emojis = EMOJI_PATTERN.findall(cleaned)
-                remainder_without_emojis = EMOJI_PATTERN.sub('', cleaned).strip()
-                if emojis and not remainder_without_emojis:
-                    norm = sub
-                    is_explicit = True
-                break
-
-    if not is_explicit:
+    if not lower.startswith((".", "!")):
         return None
 
-    emojis = EMOJI_PATTERN.findall(norm)
+    remainder = lower[1:].strip()
+    norm_remainder = norm[1:].strip()
+
+    is_react = False
+    if remainder.startswith(("react", "ری‌اکت", "ری اکت")):
+        for kw in ("react", "ری‌اکت", "ری اکت"):
+            if remainder.startswith(kw):
+                remainder = remainder[len(kw):].strip()
+                norm_remainder = norm_remainder[len(kw):].strip()
+                is_react = True
+                break
+    else:
+        # Shorthand: .<emoji> [count], e.g. .😂 30
+        cleaned = re.sub(r'[\s\d]|تا', '', remainder)
+        emojis = EMOJI_PATTERN.findall(cleaned)
+        remainder_without_emojis = EMOJI_PATTERN.sub('', cleaned).strip()
+        if emojis and not remainder_without_emojis:
+            is_react = True
+
+    if not is_react:
+        return None
+
+    emojis = EMOJI_PATTERN.findall(norm_remainder)
     if not emojis:
         return None
     emoji = emojis[0]
 
-    digits = re.findall(r'\b\d+\b', norm)
+    digits = re.findall(r'\b\d+\b', norm_remainder)
     count = 15
     if digits:
         try:
@@ -272,7 +274,7 @@ class TelegramBridge:
                     "⚠️ **خطای ریپلای:**\n"
                     "برای ارسال رگباری ری‌اکت، باید این دستور را روی یکی از پیام‌های کاربر مورد نظر ریپلای (Reply) کنید!\n\n"
                     "💡 **مثال:** روی پیام طرف ریپلای کنید و بفرستید:\n"
-                    "`جارویس 😂 ۳۰` یا `.react 😂 20`"
+                    "`.react 😂 30` یا `.😂 ۳۰`"
                 )
             except Exception:
                 pass
