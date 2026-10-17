@@ -18,12 +18,16 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import subprocess
 import tempfile
 import threading
 import wave
 from pathlib import Path
 from typing import Optional, Tuple
+from telethon.tl.functions.messages import SendReactionRequest
+from telethon.tl.types import ReactionEmoji
+from telethon.errors import FloodWaitError
 
 # Gemini reply audio format (matches RECEIVE_SAMPLE_RATE / CHANNELS in main.py)
 _PCM_RATE     = 24_000
@@ -35,6 +39,68 @@ _TRIGGERS = ("jarvis", "جارویس")
 
 # How long to wait for a Gemini turn to complete before giving up.
 _TURN_TIMEOUT = 120
+
+# ── Telegram Reaction Spammer Utilities ──────────────────────────────────────
+PERSIAN_ARABIC_DIGITS = str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789')
+EMOJI_PATTERN = re.compile(
+    r'(?:[\U00010000-\U0010ffff]|[\u2600-\u27bf]|[\u2300-\u23ff]|[\u2b50]|[\u203c-\u2049])'
+    r'(?:[\ufe0e\ufe0f]|[\U0001f3fb-\U0001f3ff]|(?:\u200d(?:[\U00010000-\U0010ffff]|[\u2600-\u27bf]))*)'
+)
+
+def parse_reaction_command(raw_text: str):
+    """
+    Parses commands like:
+      - 'جارویس 😂 ۳۰'
+      - 'جارویس 😂 30'
+      - 'جارویس 😂'
+      - '.react 😂 50'
+      - 'jarvis react 😂 30'
+      - 'جارویس ری‌اکت ❤️ ۲۰'
+      - 'جارویس ۳۰ تا 😂'
+    Returns (emoji, count) or None if not a reaction command.
+    """
+    if not raw_text:
+        return None
+    text = raw_text.strip()
+    norm = text.translate(PERSIAN_ARABIC_DIGITS)
+    lower = norm.lower()
+
+    is_explicit = False
+    for pref in ('.react', '!react', 'jarvis react', 'جارویس ری‌اکت', 'جارویس ری اکت', 'جارویس ری‌اکشن', 'جارویس ریپلای'):
+        if lower.startswith(pref):
+            is_explicit = True
+            norm = norm[len(pref):].strip()
+            break
+
+    if not is_explicit:
+        for pref in ('جارویس', 'jarvis'):
+            if lower.startswith(pref):
+                sub = norm[len(pref):].strip()
+                cleaned = re.sub(r'[\s\d]|ری‌اکت|ری اکت|ریپلای|ریپ|تا|react', '', sub)
+                emojis = EMOJI_PATTERN.findall(cleaned)
+                remainder_without_emojis = EMOJI_PATTERN.sub('', cleaned).strip()
+                if emojis and not remainder_without_emojis:
+                    norm = sub
+                    is_explicit = True
+                break
+
+    if not is_explicit:
+        return None
+
+    emojis = EMOJI_PATTERN.findall(norm)
+    if not emojis:
+        return None
+    emoji = emojis[0]
+
+    digits = re.findall(r'\b\d+\b', norm)
+    count = 15
+    if digits:
+        try:
+            count = max(1, min(100, int(digits[0])))
+        except Exception:
+            pass
+
+    return emoji, count
 
 
 def _ffmpeg_available() -> bool:
@@ -197,6 +263,156 @@ class TelegramBridge:
 
     # ── inbound handler (runs on the Telethon loop — must not block) ────────────
 
+    async def _handle_reaction_spam(self, event, emoji: str, count: int):
+        """Spam reactions using the PC userbot client."""
+        if not event.is_reply:
+            try:
+                await self._client.edit_message(
+                    event.chat_id, event.id,
+                    "⚠️ **خطای ریپلای:**\n"
+                    "برای ارسال رگباری ری‌اکت، باید این دستور را روی یکی از پیام‌های کاربر مورد نظر ریپلای (Reply) کنید!\n\n"
+                    "💡 **مثال:** روی پیام طرف ریپلای کنید و بفرستید:\n"
+                    "`جارویس 😂 ۳۰` یا `.react 😂 20`"
+                )
+            except Exception:
+                pass
+            return
+
+        reply_msg = await event.get_reply_message()
+        if not reply_msg:
+            try:
+                await self._client.edit_message(event.chat_id, event.id, "⚠️ پیام ریپلای‌شده یافت نشد.")
+            except Exception:
+                pass
+            return
+
+        target_sender = getattr(reply_msg, "sender_id", None) or getattr(reply_msg, "from_id", None)
+        target_name = "کاربر"
+        try:
+            sender = await reply_msg.get_sender()
+            if sender:
+                target_name = getattr(sender, "first_name", "") or getattr(sender, "title", "") or "کاربر"
+        except Exception:
+            pass
+
+        try:
+            await self._client.edit_message(
+                event.chat_id, event.id,
+                f"⚡ **شروع عملیات ارسال ری‌اکت JARVIS**\n"
+                f"───────────────────────────\n"
+                f"🎯 **هدف:** {target_name}\n"
+                f"💥 **ایموجی:** {emoji}\n"
+                f"🔢 **تعداد درخواستی:** `{count}`\n"
+                f"🔍 *در حال جستجوی پیام‌های اخیر...*"
+            )
+        except Exception:
+            pass
+
+        chat_id = event.chat_id
+        target_msgs = [reply_msg]
+        seen_ids = {reply_msg.id}
+
+        if count > 1:
+            try:
+                async for m in self._client.iter_messages(chat_id, from_user=target_sender, limit=max(count * 2, 50)):
+                    if m.id not in seen_ids and not getattr(m, "action", None):
+                        seen_ids.add(m.id)
+                        target_msgs.append(m)
+                        if len(target_msgs) >= count:
+                            break
+            except Exception:
+                pass
+
+            if len(target_msgs) < count:
+                try:
+                    async for m in self._client.iter_messages(chat_id, limit=min(max(count * 4, 100), 300)):
+                        m_from = getattr(m, "sender_id", None) or getattr(m, "from_id", None)
+                        if m.id not in seen_ids and m_from == target_sender and not getattr(m, "action", None):
+                            seen_ids.add(m.id)
+                            target_msgs.append(m)
+                            if len(target_msgs) >= count:
+                                break
+                except Exception:
+                    pass
+
+        actual_count = len(target_msgs)
+        if actual_count == 0:
+            try:
+                await self._client.edit_message(event.chat_id, event.id, f"⚠️ پیامی از {target_name} جهت ثبت ری‌اکت پیدا نشد.")
+            except Exception:
+                pass
+            return
+
+        try:
+            input_peer = await self._client.get_input_entity(chat_id)
+        except Exception:
+            input_peer = chat_id
+
+        success_count = 0
+        try:
+            await self._client.edit_message(
+                event.chat_id, event.id,
+                f"⚡ **در حال ارسال {actual_count} ری‌اکت {emoji} برای {target_name}...**\n"
+                f"📊 `[0/{actual_count}]`"
+            )
+        except Exception:
+            pass
+
+        for idx, msg in enumerate(target_msgs):
+            try:
+                await self._client(SendReactionRequest(
+                    peer=input_peer,
+                    msg_id=msg.id,
+                    reaction=[ReactionEmoji(emoticon=emoji)]
+                ))
+                success_count += 1
+                if (idx + 1) % 5 == 0 or (idx + 1) == actual_count:
+                    try:
+                        await self._client.edit_message(
+                            event.chat_id, event.id,
+                            f"⚡ **در حال ارسال ری‌اکت {emoji} برای {target_name}...**\n"
+                            f"📊 `[{success_count}/{actual_count}]` {emoji * min(success_count, 8)}"
+                        )
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.35)
+            except FloodWaitError as fe:
+                if fe.seconds > 20:
+                    try:
+                        await self._client.edit_message(
+                            event.chat_id, event.id,
+                            f"⚠️ **محدودیت زمانی موقت تلگرام (FloodWait):** {fe.seconds} ثانیه.\n"
+                            f"✅ **{success_count}** ری‌اکت {emoji} با موفقیت ثبت شد."
+                        )
+                    except Exception:
+                        pass
+                    return
+                await asyncio.sleep(fe.seconds + 1)
+                try:
+                    await self._client(SendReactionRequest(
+                        peer=input_peer,
+                        msg_id=msg.id,
+                        reaction=[ReactionEmoji(emoticon=emoji)]
+                    ))
+                    success_count += 1
+                except Exception:
+                    pass
+            except Exception:
+                await asyncio.sleep(0.2)
+                continue
+
+        try:
+            await self._client.edit_message(
+                event.chat_id, event.id,
+                f"✅ **عملیات با موفقیت انجام شد!** ⚡\n"
+                f"───────────────────────────\n"
+                f"🎯 **کاربر هدف:** {target_name}\n"
+                f"💥 **تعداد ارسال:** `{success_count}` از `{actual_count}` ری‌اکت {emoji}\n"
+                f"👑 *JARVIS Advanced Reaction Protocol*"
+            )
+        except Exception:
+            pass
+
     async def _on_new_message(self, event):
         try:
             if not event.out:
@@ -209,6 +425,13 @@ class TelegramBridge:
                     args=(chat_id, event.raw_text, event.id),
                     daemon=True,
                 ).start()
+                return
+
+            # Reaction Spam Protocol (e.g. جارویس 😂 ۳۰ / .react 😂 30)
+            react_cmd = parse_reaction_command(event.raw_text or "")
+            if react_cmd:
+                emoji, count = react_cmd
+                await self._handle_reaction_spam(event, emoji, count)
                 return
 
             command = self._parse_trigger(event.raw_text or "")

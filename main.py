@@ -503,10 +503,12 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "OBJECT",
             "properties": {
-                "action":     {"type": "STRING",  "description": "login | verify_code | enter_password | set_phone | send_message | read_messages | get_chats | get_unread | mark_as_read | send_file | delete_message | search | get_me | get_contacts | logout"},
+                "action":     {"type": "STRING",  "description": "login | verify_code | enter_password | set_phone | send_message | read_messages | get_chats | get_unread | mark_as_read | send_file | delete_message | search | spam_react | get_me | get_contacts | logout"},
                 "receiver":   {"type": "STRING",  "description": "Recipient name, @username, or phone number for send_message/send_file"},
-                "target":     {"type": "STRING",  "description": "Chat name or username for read/mark actions"},
-                "chat":       {"type": "STRING",  "description": "Chat name for read_messages/mark_as_read/search/delete_message"},
+                "target":     {"type": "STRING",  "description": "Chat name or username for read/mark/spam_react actions"},
+                "chat":       {"type": "STRING",  "description": "Chat name for read_messages/mark_as_read/search/delete_message/spam_react"},
+                "emoji":      {"type": "STRING",  "description": "Emoji emoticon to react with for spam_react action (default: 😂)"},
+                "count":      {"type": "INTEGER", "description": "Number of reactions to send for spam_react action (default: 15, max: 100)"},
                 "text":       {"type": "STRING",  "description": "Message text to send"},
                 "message_text":{"type": "STRING", "description": "Alias for text"},
                 "phone":      {"type": "STRING",  "description": "Phone number with country code e.g. +989123456789 (for login/set_phone)"},

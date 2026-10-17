@@ -23,6 +23,8 @@ try:
         FloodWaitError,
     )
     from telethon.tl.functions.contacts import SearchRequest
+    from telethon.tl.functions.messages import SendReactionRequest
+    from telethon.tl.types import ReactionEmoji
     _TELETHON = True
 except ImportError:
     _TELETHON = False
@@ -488,6 +490,62 @@ def telegram_control(parameters: dict, player=None, speak=None) -> str:
         except Exception as e:
             return f"Search failed: {e}"
 
+    # ── spam_react ────────────────────────────────────────────────────────────
+    if action in ("spam_react", "react"):
+        target = params.get("chat", params.get("target", params.get("receiver", ""))).strip()
+        emoji = params.get("emoji", "😂").strip() or "😂"
+        count = int(params.get("count", params.get("limit", 15)))
+        count = max(1, min(100, count))
+        if not target:
+            return "Please specify which chat or contact to react to, Sir."
+
+        try:
+            entity = _run(_resolve_entity_async(client, target))
+
+            async def _do_spam_react():
+                target_msgs = []
+                async for m in client.iter_messages(entity, limit=min(count * 3, 150)):
+                    if not getattr(m, "action", None):
+                        target_msgs.append(m)
+                        if len(target_msgs) >= count:
+                            break
+
+                success = 0
+                for m in target_msgs:
+                    try:
+                        await client(SendReactionRequest(
+                            peer=entity,
+                            msg_id=m.id,
+                            reaction=[ReactionEmoji(emoticon=emoji)]
+                        ))
+                        success += 1
+                        await asyncio.sleep(0.35)
+                    except FloodWaitError as fe:
+                        if fe.seconds > 15:
+                            break
+                        await asyncio.sleep(fe.seconds + 1)
+                        try:
+                            await client(SendReactionRequest(
+                                peer=entity,
+                                msg_id=m.id,
+                                reaction=[ReactionEmoji(emoticon=emoji)]
+                            ))
+                            success += 1
+                        except Exception:
+                            pass
+                    except Exception:
+                        await asyncio.sleep(0.2)
+                        continue
+                return success, len(target_msgs)
+
+            success_count, total_found = _run(_do_spam_react(), timeout=120)
+            name = target if isinstance(entity, str) else \
+                   (getattr(entity, "first_name", None) or getattr(entity, "title", target))
+            _log(f"✅ Sent {success_count} {emoji} reactions in {name}")
+            return f"Successfully sent {success_count} {emoji} reactions to messages in {name}, Sir."
+        except Exception as e:
+            return f"Failed to send reactions: {e}"
+
     # ── logout ────────────────────────────────────────────────────────────────
     if action == "logout":
         try:
@@ -504,5 +562,5 @@ def telegram_control(parameters: dict, player=None, speak=None) -> str:
         f"Unknown Telegram action: '{action}'. "
         "Supported: login, verify_code, enter_password, set_phone, send_message, "
         "read_messages, get_chats, get_unread, mark_as_read, send_file, "
-        "delete_message, search, get_me, get_contacts, logout."
+        "delete_message, search, spam_react, get_me, get_contacts, logout."
     )

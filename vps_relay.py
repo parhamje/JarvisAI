@@ -27,6 +27,9 @@ import pytz
 import requests
 from telethon import TelegramClient, events
 from telethon.tl.functions.account import UpdateProfileRequest
+from telethon.tl.functions.messages import SendReactionRequest
+from telethon.tl.types import ReactionEmoji
+from telethon.errors import FloodWaitError
 from google import genai
 
 # Configuration
@@ -36,6 +39,219 @@ SESSION_PATH = BASE_DIR / "jarvis"
 
 # Triggers
 TRIGGERS = ("jarvis", "جارویس", "حارویس", "جرویس", "ژارویس")
+
+# ── Telegram Reaction Spammer Utilities ──────────────────────────────────────
+PERSIAN_ARABIC_DIGITS = str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789')
+EMOJI_PATTERN = re.compile(
+    r'(?:[\U00010000-\U0010ffff]|[\u2600-\u27bf]|[\u2300-\u23ff]|[\u2b50]|[\u203c-\u2049])'
+    r'(?:[\ufe0e\ufe0f]|[\U0001f3fb-\U0001f3ff]|(?:\u200d(?:[\U00010000-\U0010ffff]|[\u2600-\u27bf]))*)'
+)
+
+def parse_reaction_command(raw_text: str):
+    """
+    Parses commands like:
+      - 'جارویس 😂 ۳۰'
+      - 'جارویس 😂 30'
+      - 'جارویس 😂'
+      - '.react 😂 50'
+      - 'jarvis react 😂 30'
+      - 'جارویس ری‌اکت ❤️ ۲۰'
+      - 'جارویس ۳۰ تا 😂'
+    Returns (emoji, count) or None if not a reaction command.
+    """
+    if not raw_text:
+        return None
+    text = raw_text.strip()
+    norm = text.translate(PERSIAN_ARABIC_DIGITS)
+    lower = norm.lower()
+
+    is_explicit = False
+    for pref in ('.react', '!react', 'jarvis react', 'جارویس ری‌اکت', 'جارویس ری اکت', 'جارویس ری‌اکشن', 'جارویس ریپلای'):
+        if lower.startswith(pref):
+            is_explicit = True
+            norm = norm[len(pref):].strip()
+            break
+
+    if not is_explicit:
+        for pref in ('جارویس', 'jarvis'):
+            if lower.startswith(pref):
+                sub = norm[len(pref):].strip()
+                cleaned = re.sub(r'[\s\d]|ری‌اکت|ری اکت|ریپلای|ریپ|تا|react', '', sub)
+                emojis = EMOJI_PATTERN.findall(cleaned)
+                remainder_without_emojis = EMOJI_PATTERN.sub('', cleaned).strip()
+                if emojis and not remainder_without_emojis:
+                    norm = sub
+                    is_explicit = True
+                break
+
+    if not is_explicit:
+        return None
+
+    emojis = EMOJI_PATTERN.findall(norm)
+    if not emojis:
+        return None
+    emoji = emojis[0]
+
+    digits = re.findall(r'\b\d+\b', norm)
+    count = 15
+    if digits:
+        try:
+            count = max(1, min(100, int(digits[0])))
+        except Exception:
+            pass
+
+    return emoji, count
+
+
+async def handle_reaction_spam(event, emoji: str, count: int):
+    """
+    Reacts with the specified emoji to up to `count` recent messages of the
+    user replied to in the current chat.
+    """
+    if not event.is_reply:
+        try:
+            await event.edit(
+                "⚠️ **خطای ریپلای:**\n"
+                "برای ارسال رگباری ری‌اکت، باید این دستور را روی یکی از پیام‌های کاربر مورد نظر ریپلای (Reply) کنید!\n\n"
+                "💡 **مثال:** روی پیام طرف ریپلای کنید و بفرستید:\n"
+                "`جارویس 😂 ۳۰` یا `.react 😂 20`"
+            )
+        except Exception:
+            pass
+        return
+
+    reply_msg = await event.get_reply_message()
+    if not reply_msg:
+        try:
+            await event.edit("⚠️ پیام ریپلای‌شده یافت نشد.")
+        except Exception:
+            pass
+        return
+
+    target_sender = getattr(reply_msg, "sender_id", None) or getattr(reply_msg, "from_id", None)
+    target_name = "کاربر"
+    try:
+        sender = await reply_msg.get_sender()
+        if sender:
+            target_name = getattr(sender, "first_name", "") or getattr(sender, "title", "") or "کاربر"
+    except Exception:
+        pass
+
+    try:
+        await event.edit(
+            f"⚡ **شروع عملیات ارسال ری‌اکت JARVIS**\n"
+            f"───────────────────────────\n"
+            f"🎯 **هدف:** {target_name}\n"
+            f"💥 **ایموجی:** {emoji}\n"
+            f"🔢 **تعداد درخواستی:** `{count}`\n"
+            f"🔍 *در حال جستجوی پیام‌های اخیر...*"
+        )
+    except Exception:
+        pass
+
+    chat_id = event.chat_id
+    target_msgs = [reply_msg]
+    seen_ids = {reply_msg.id}
+
+    if count > 1:
+        # 1. Fast path with from_user filter
+        try:
+            async for m in tg_client.iter_messages(chat_id, from_user=target_sender, limit=max(count * 2, 50)):
+                if m.id not in seen_ids and not getattr(m, "action", None):
+                    seen_ids.add(m.id)
+                    target_msgs.append(m)
+                    if len(target_msgs) >= count:
+                        break
+        except Exception:
+            pass
+
+        # 2. Fallback: scan recent messages in chat
+        if len(target_msgs) < count:
+            try:
+                async for m in tg_client.iter_messages(chat_id, limit=min(max(count * 4, 100), 300)):
+                    m_from = getattr(m, "sender_id", None) or getattr(m, "from_id", None)
+                    if m.id not in seen_ids and m_from == target_sender and not getattr(m, "action", None):
+                        seen_ids.add(m.id)
+                        target_msgs.append(m)
+                        if len(target_msgs) >= count:
+                            break
+            except Exception:
+                pass
+
+    actual_count = len(target_msgs)
+    if actual_count == 0:
+        try:
+            await event.edit(f"⚠️ پیامی از {target_name} جهت ثبت ری‌اکت پیدا نشد.")
+        except Exception:
+            pass
+        return
+
+    try:
+        input_peer = await tg_client.get_input_entity(chat_id)
+    except Exception:
+        input_peer = chat_id
+
+    success_count = 0
+    try:
+        await event.edit(
+            f"⚡ **در حال ارسال {actual_count} ری‌اکت {emoji} برای {target_name}...**\n"
+            f"📊 `[0/{actual_count}]`"
+        )
+    except Exception:
+        pass
+
+    for idx, msg in enumerate(target_msgs):
+        try:
+            await tg_client(SendReactionRequest(
+                peer=input_peer,
+                msg_id=msg.id,
+                reaction=[ReactionEmoji(emoticon=emoji)]
+            ))
+            success_count += 1
+            if (idx + 1) % 5 == 0 or (idx + 1) == actual_count:
+                try:
+                    await event.edit(
+                        f"⚡ **در حال ارسال ری‌اکت {emoji} برای {target_name}...**\n"
+                        f"📊 `[{success_count}/{actual_count}]` {emoji * min(success_count, 8)}"
+                    )
+                except Exception:
+                    pass
+            await asyncio.sleep(0.35)
+        except FloodWaitError as fe:
+            if fe.seconds > 20:
+                try:
+                    await event.edit(
+                        f"⚠️ **محدودیت زمانی موقت تلگرام (FloodWait):** {fe.seconds} ثانیه.\n"
+                        f"✅ **{success_count}** ری‌اکت {emoji} با موفقیت ثبت شد."
+                    )
+                except Exception:
+                    pass
+                return
+            await asyncio.sleep(fe.seconds + 1)
+            try:
+                await tg_client(SendReactionRequest(
+                    peer=input_peer,
+                    msg_id=msg.id,
+                    reaction=[ReactionEmoji(emoticon=emoji)]
+                ))
+                success_count += 1
+            except Exception:
+                pass
+        except Exception:
+            await asyncio.sleep(0.2)
+            continue
+
+    try:
+        await event.edit(
+            f"✅ **عملیات با موفقیت انجام شد!** ⚡\n"
+            f"───────────────────────────\n"
+            f"🎯 **کاربر هدف:** {target_name}\n"
+            f"💥 **تعداد ارسال:** `{success_count}` از `{actual_count}` ری‌اکت {emoji}\n"
+            f"👑 *JARVIS Advanced Reaction Protocol*"
+        )
+    except Exception:
+        pass
+
 
 # Global State
 connected_pc = None
@@ -421,7 +637,7 @@ async def start_telegram_listener():
         elif data == "cat_time":
             await event.edit("⏰ **یادآور و زمان:**\n▫️ `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه` ➔ تنظیم آلارم و نوتیفیکیشن\n▫️ ساعت زنده پروفایل تلگرام (۲۴ ساعته فعال)", buttons=back_btn)
         elif data == "cat_tools":
-            await event.edit("🛠️ **ابزارها و چت:**\n▫️ `جارویس تایپ کن <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `جارویس کیست` ➔ شناسانامه کامل کاربر\n▫️ `جارویس پاک کن <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `جارویس ذخیره` ➔ ذخیره پیام در Saved Messages", buttons=back_btn)
+            await event.edit("🛠️ **ابزارها و چت:**\n▫️ `جارویس 😂 ۳۰` (روی پیام) ➔ بمباران رگباری ری‌اکت\n▫️ `جارویس تایپ کن <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `جارویس کیست` ➔ شناسانامه کامل کاربر\n▫️ `جارویس پاک کن <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `جارویس ذخیره` ➔ ذخیره پیام در Saved Messages", buttons=back_btn)
         elif data == "cat_help":
             await event.edit("📖 **راهنمای کامل:**\nبرای مشاهده متن کامل راهنمای تمام دستورات، کلمه `راهنما جارویس` را تایپ کنید.", buttons=back_btn)
         else:
@@ -507,6 +723,13 @@ async def start_telegram_listener():
 
         lower = raw_text.lower()
 
+        # 0a. Advanced Telegram Reaction Spammer (.react / jarvis react / جارویس 😂 ۳۰)
+        react_cmd = parse_reaction_command(raw_text)
+        if react_cmd:
+            emoji, count = react_cmd
+            await handle_reaction_spam(event, emoji, count)
+            return
+
         # 0. Help Guide Command (.help / jarvis help / جارویس راهنما / راهنما جارویس / راهنما)
         if lower in (".help", "jarvis help", "جارویس راهنما", "راهنما جارویس", "راهنمای جارویس", "راهنما", "help"):
             help_text = (
@@ -537,6 +760,7 @@ async def start_telegram_listener():
                 "▫️ `جارویس وضعیت` یا `.ping` ➔ داشبورد رم سرور، پینگ و اتصال PC\n"
                 "▫️ `جارویس اسپیدتست` یا `.speedtest` ➔ تست سرعت اینترنت VPS\n\n"
                 "🧹 **مدیریت و ابزارها:**\n"
+                "▫️ `جارویس 😂 ۳۰` یا `.react 😂 30` (روی پیام) ➔ بمباران رگباری ری‌اکت به پیام‌های طرف مقابل\n"
                 "▫️ `جارویس تایپ کن <متن>` ➔ انیمیشن تایپ زنده\n"
                 "▫️ `جارویس کیست` (روی پیام) ➔ شناسنامه کاربر\n"
                 "▫️ `جارویس استیکر` (روی عکس) ➔ تبدیل عکس به استیکر\n"
@@ -602,7 +826,7 @@ async def start_telegram_listener():
             elif sec == "6":
                 await event.edit("⏰ **بخش ۶: یادآور و زمان**\n─────────────────\n▫️ `جارویس ۱۰ دقیقه دیگه یادم بنداز بریم جلسه` ➔ تنظیم آلارم و نوتیفیکیشن\n▫️ ساعت زنده پروفایل تلگرام (۲۴ ساعته فعال)\n\n💡 *برای بازگشت بنویسید:* `پنل`")
             elif sec == "7":
-                await event.edit("🛠️ **بخش ۷: ابزارها و چت**\n─────────────────\n▫️ `جارویس تایپ کن <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `جارویس کیست` ➔ شناسانامه کامل کاربر\n▫️ `جارویس پاک کن <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `جارویس ذخیره` ➔ ذخیره پیام در Saved Messages\n\n💡 *برای بازگشت بنویسید:* `پنل`")
+                await event.edit("🛠️ **بخش ۷: ابزارها و چت**\n─────────────────\n▫️ `جارویس 😂 ۳۰` (روی پیام) ➔ بمباران رگباری ری‌اکت\n▫️ `جارویس تایپ کن <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `جارویس کیست` ➔ شناسانامه کامل کاربر\n▫️ `جارویس پاک کن <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `جارویس ذخیره` ➔ ذخیره پیام در Saved Messages\n\n💡 *برای بازگشت بنویسید:* `پنل`")
             elif sec == "8":
                 await event.edit("📖 **بخش ۸: راهنمای کامل**\n─────────────────\nبرای مشاهده متن کامل راهنمای تمام دستورات، کلمه `راهنما جارویس` را تایپ کنید.\n\n💡 *برای بازگشت بنویسید:* `پنل`")
             return
