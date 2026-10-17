@@ -23,10 +23,11 @@ fi
 
 # Setup Virtual Environment
 echo "[2/4] Setting up Python virtual environment (.venv)..."
-if [ ! -d ".venv" ]; then
+if [ ! -f ".venv/bin/activate" ]; then
+    rm -rf .venv
     python3 -m venv .venv
 fi
-source .venv/bin/activate
+source .venv/bin/activate 2>/dev/null || . .venv/bin/activate
 
 # Install Python requirements
 echo "[3/4] Installing Python packages from requirements_vps.txt..."
