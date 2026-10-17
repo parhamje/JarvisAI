@@ -1,59 +1,65 @@
 #!/bin/bash
 # ------------------------------------------------------------------
-# Jarvis 24/7 Direct VPS Setup (No Docker) for Ubuntu 24.04
+# Jarvis 24/7 Direct VPS Setup for Ubuntu / Debian (Fresh Deployment)
 # ------------------------------------------------------------------
 
 set -e
 
-echo "[Jarvis VPS] Installing system dependencies..."
-sudo apt-get update
-sudo apt-get install -y python3-pip python3-venv ffmpeg git portaudio19-dev libgl1 libglib2.0-0 xvfb
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$DIR"
 
-echo "[Jarvis VPS] Setting up Python virtual environment..."
-python3 -m venv .venv
+echo "=================================================================="
+echo "⚡ Jarvis 24/7 VPS Deployment - Initializing Setup"
+echo "=================================================================="
+
+# Install apt packages
+echo "[1/4] Installing system dependencies (python3, ffmpeg, git, psmisc)..."
+if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -y
+    apt-get install -y python3 python3-pip python3-venv ffmpeg git curl psmisc
+else
+    echo "Notice: Non-Debian/Ubuntu system. Please ensure python3, ffmpeg, and git are installed."
+fi
+
+# Setup Virtual Environment
+echo "[2/4] Setting up Python virtual environment (.venv)..."
+if [ ! -d ".venv" ]; then
+    python3 -m venv .venv
+fi
 source .venv/bin/activate
 
-echo "[Jarvis VPS] Installing Python packages..."
+# Install Python requirements
+echo "[3/4] Installing Python packages from requirements_vps.txt..."
 pip install --upgrade pip
-pip install -r requirements_docker.txt
+pip install -r requirements_vps.txt
 
-chmod +x start_vps.sh stop_vps.sh status_vps.sh 2>/dev/null || true
+# Ensure shell scripts are executable
+echo "[4/4] Setting script permissions..."
+chmod +x *.sh 2>/dev/null || true
 
-# Check if running in a systemd environment (PID 1 is systemd)
-if [ -d /run/systemd/system ] && pidof systemd >/dev/null 2>&1; then
-    echo "[Jarvis VPS] Systemd detected. Configuring 24/7 Systemd Background Service..."
-    CURRENT_DIR=$(pwd)
-
-    cat <<EOF > /etc/systemd/system/jarvis.service
-[Unit]
-Description=Jarvis AI Assistant 24/7 Service
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=${CURRENT_DIR}
-ExecStart=${CURRENT_DIR}/.venv/bin/python vps_relay.py
-Restart=always
-RestartSec=5
-Environment=PYTHONUNBUFFERED=1
-
-[Install]
-WantedBy=multi-user.target
+# Config placeholder if missing
+mkdir -p config
+if [ ! -f "config/api_keys.json" ]; then
+    echo "[!] config/api_keys.json not found. Creating placeholder..."
+    cat << 'EOF' > config/api_keys.json
+{
+    "gemini_api_key": "",
+    "telegram_api_id": 0,
+    "telegram_api_hash": "",
+    "openrouter_api_key": ""
+}
 EOF
-
-    echo "[Jarvis VPS] Enabling and starting Jarvis service..."
-    systemctl daemon-reload
-    systemctl enable --now jarvis
-
-    echo "=================================================================="
-    echo "[OK] Jarvis is now running 24/7 on your VPS via systemd!"
-    echo "Check live logs: sudo journalctl -u jarvis -f"
-    echo "Check status:    sudo systemctl status jarvis"
-    echo "Restart service: sudo systemctl restart jarvis"
-    echo "=================================================================="
-else
-    echo "[Jarvis VPS] Container / Non-systemd environment detected."
-    echo "[Jarvis VPS] Starting Jarvis 24/7 background supervisor..."
-    ./start_vps.sh
 fi
+
+echo "=================================================================="
+echo "✅ Setup successfully completed!"
+echo "------------------------------------------------------------------"
+echo "📌 Next Steps:"
+echo "1. Put your api_keys.json in config/api_keys.json"
+echo "2. If you have jarvis.session, copy it to $(pwd)/jarvis.session"
+echo "   OR if logging in for the first time on this VPS, run:"
+echo "      ./.venv/bin/python vps_relay.py"
+echo "   (enter your phone and OTP code once)"
+echo "3. Start 24/7 background mode:"
+echo "      ./start_vps.sh"
+echo "=================================================================="

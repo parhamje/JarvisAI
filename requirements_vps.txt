@@ -1,0 +1,10 @@
+telethon
+websockets
+pytz
+requests
+beautifulsoup4
+google-genai
+pillow
+pydub
+PySocks
+speedtest-cli
