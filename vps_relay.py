@@ -40,6 +40,36 @@ SESSION_PATH = BASE_DIR / "jarvis"
 # Triggers
 TRIGGERS = ("jarvis", "جارویس", "حارویس", "جرویس", "ژارویس")
 
+HELP_TEXT = (
+    "🤖 **راهنمای جامع JARVIS AI & سلف‌بات تلگرام** 🤖\n"
+    "───────────────────────────\n\n"
+    "🧠 **بخش ۱: دستورات هوش مصنوعی (پیشوند اختصاصی: `جارویس` یا `jarvis`)**\n"
+    "▫️ `جارویس <سوال>` ➔ چت زنده هوش مصنوعی، حل مسائل و برنامه‌نویسی\n"
+    "▫️ ریپلای روی ویس با `جارویس` ➔ شنیدن ویس و پاسخ با ویس صوتی تلگرام\n"
+    "▫️ `جارویس ترجمه کن ...` ➔ ترجمه دقیق، روان و تخصصی متون\n"
+    "▫️ `جارویس سرچ کن ...` ➔ جستجوی عمیق و زنده وب با تحلیل هوشمند\n"
+    "▫️ `جارویس سیستم رو قفل کن` ➔ کنترل از راه دور کامپیوتر خانه (در صورت اتصال PC)\n\n"
+    "⚙️ **بخش ۲: ابزارهای سلف‌بات تلگرام (پیشوند استاندارد: `.`)**\n"
+    "▫️ `.react 😂 30` (یا `.😂 ۳۰`) ➔ بمباران رگباری ری‌اکت به پیام‌های طرف\n"
+    "▫️ `.ping` یا `.status` ➔ پینگ تلگرام، مصرف رم سرور و وضعیت سیستم\n"
+    "▫️ `.speedtest` ➔ سنجش زنده سرعت اینترنت سرور VPS\n"
+    "▫️ `.panel` ➔ پنل شیشه‌ای کنترل با دکمه‌های تعاملی\n"
+    "▫️ `.afk [دلیل]` ➔ منشی خودکار حالت عدم حضور (۱ بار برای هر مخاطب)\n"
+    "▫️ `.notafk` / `.back` ➔ خاموش کردن منشی خودکار\n"
+    "▫️ `.whois` (روی پیام) ➔ شناسنامه کامل کاربر (نام، آیدی عددی، DC ID)\n"
+    "▫️ `.sticker` (روی عکس) ➔ تبدیل فوری عکس به استیکر شفاف\n"
+    "▫️ `.tts <متن>` ➔ تبدیل متن به ویس با صدای گوینده در چت\n"
+    "▫️ `.type <متن>` ➔ تایپ انیمیشنی زنده متن در چت\n"
+    "▫️ `.purge <تعداد>` ➔ پاکسازی سریع پیام‌های اخیر شما\n"
+    "▫️ `.save` (روی پیام) ➔ انتقال پیام به پیام‌های ذخیره‌شده (Saved Messages)\n"
+    "▫️ `.remind <زمان> <کار>` ➔ تنظیم آلارم و یادآور (مثلاً `.remind 10m جلسه`)\n"
+    "▫️ `.allow <ID>` / `.disallow <ID>` / `.allowed` ➔ مدیریت دسترسی به هوش مصنوعی\n"
+    "▫️ `.doomsday` ➔ روزشمار تیک‌تاک زنده Avengers: Doomsday 2026\n"
+    "▫️ `.gta` ➔ روزشمار تیک‌تاک زنده GTA VI با گرافیک Vice City\n"
+    "───────────────────────────\n"
+    "💡 *برای دیدن مجدد این راهنما از دستورات `.help` یا `.راهنما` استفاده کنید.*"
+)
+
 # ── Telegram Reaction Spammer Utilities ──────────────────────────────────────
 PERSIAN_ARABIC_DIGITS = str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789')
 EMOJI_PATTERN = re.compile(
@@ -641,7 +671,7 @@ async def start_telegram_listener():
         elif data == "cat_tools":
             await event.edit("🛠️ **ابزارها و چت (پیشوند `.`):**\n▫️ `.react 😂 30` (یا `.😂 ۳۰`) ➔ بمباران رگباری ری‌اکت\n▫️ `.type <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `.whois` (روی پیام) ➔ شناسنامه کامل کاربر\n▫️ `.purge <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `.save` (روی پیام) ➔ ذخیره پیام در Saved Messages", buttons=back_btn)
         elif data == "cat_help":
-            await event.edit("📖 **راهنمای کامل:**\nبرای مشاهده متن کامل راهنمای تمام دستورات، دستور `.help` را تایپ کنید.", buttons=back_btn)
+            await event.edit(HELP_TEXT, buttons=back_btn)
         else:
             await event.edit("ℹ️ **بخش مربوطه فعال است.**", buttons=back_btn)
 
@@ -670,6 +700,10 @@ async def start_telegram_listener():
                 
                 if not prompt:
                     prompt = "سلام"
+
+                if prompt.lower() in ("راهنما", "help", "دستورات", "commands"):
+                    await event.reply(HELP_TEXT)
+                    return
 
                 reply_msg = await event.reply("🧠 *در حال پردازش پاسخ هوشمند...*")
                 
@@ -732,34 +766,15 @@ async def start_telegram_listener():
             await handle_reaction_spam(event, emoji, count)
             return
 
-        # 0. Help Guide Command (.help)
-        if lower in (".help", "!help", "help"):
-            help_text = (
-                "🤖 **راهنمای جامع JARVIS AI & سلف‌بات تلگرام** 🤖\n"
-                "───────────────────────────\n\n"
-                "🧠 **هوش مصنوعی (پیشوند اختصاصی: `جارویس`):**\n"
-                "▫️ `جارویس <سوال>` ➔ چت زنده هوش مصنوعی و حل مسائل\n"
-                "▫️ ریپلای روی ویس با `جارویس` ➔ شنیدن ویس و پاسخ صوتی هوشمند\n"
-                "▫️ `جارویس ترجمه کن ...` ➔ ترجمه زنده و روان متون\n"
-                "▫️ `جارویس سرچ کن ...` ➔ جستجوی عمیق وب و تحلیل هوش مصنوعی\n\n"
-                "⚙️ **سلف‌بات و ابزارها (پیشوند استاندارد: `.`) :**\n"
-                "▫️ `.react <ایموجی> <تعداد>` (یا `.😂 ۳۰`) ➔ بمباران رگباری ری‌اکت روی پیام‌ها\n"
-                "▫️ `.ping` ➔ وضعیت رم VPS، پینگ و اتصال PC\n"
-                "▫️ `.speedtest` ➔ تست سرعت اینترنت سرور VPS\n"
-                "▫️ `.afk [دلیل]` / `.notafk` ➔ منشی خودکار حالت عدم حضور\n"
-                "▫️ `.purge <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n"
-                "▫️ `.save` ➔ ذخیره پیام در Saved Messages\n"
-                "▫️ `.whois` ➔ شناسنامه کامل کاربر ریپلای‌شده\n"
-                "▫️ `.sticker` ➔ تبدیل عکس ریپلای‌شده به استیکر شفاف\n"
-                "▫️ `.nocontext` ➔ ارسال پیام بدون نقل‌قول\n"
-                "▫️ `.type <متن>` ➔ تایپ انیمیشنی زنده متن\n"
-                "▫️ `.tts <متن>` ➔ تبدیل متن به ویس واقعی تلگرام\n"
-                "▫️ `.remind <زمان> <کار>` ➔ تنظیم آلارم و یادآور متنی (مثلاً `.remind 10m جلسه`)\n"
-                "▫️ `.panel` ➔ پنل کنترلی هوشمند تلگرام\n"
-                "▫️ `.allow <ID>` / `.disallow <ID>` / `.allowed` ➔ مدیریت دسترسی به هوش مصنوعی\n"
-                "▫️ `.doomsday` / `.gta` ➔ روزشمار تیک‌تاک زنده مارول و GTA VI"
-            )
-            await event.edit(help_text)
+        # 0. Help Guide Command (.help / .راهنما / .دستورات)
+        if lower in (
+            ".help", "!help", "help",
+            ".راهنما", "!راهنما", "راهنما",
+            ".دستورات", "!دستورات", "دستورات",
+            ".کامند", "!کامند", "کامند",
+            ".commands", "!commands", "commands"
+        ):
+            await event.edit(HELP_TEXT)
             return
 
         # 0b. Telegram Interactive Control Panel (.panel)
@@ -820,7 +835,7 @@ async def start_telegram_listener():
             elif sec == "7":
                 await event.edit("🛠️ **بخش ۷: ابزارها و چت (پیشوند: `.`)**\n─────────────────\n▫️ `.react 😂 30` (یا `.😂 ۳۰`) ➔ بمباران رگباری ری‌اکت\n▫️ `.type <متن>` ➔ تایپ انیمیشنی زنده\n▫️ `.whois` ➔ شناسنامه کامل کاربر ریپلای‌شده\n▫️ `.purge <تعداد>` ➔ پاکسازی پیام‌های اخیر شما\n▫️ `.save` ➔ ذخیره پیام در Saved Messages\n\n💡 *برای بازگشت بنویسید:* `.panel`")
             elif sec == "8":
-                await event.edit("📖 **بخش ۸: راهنمای کامل**\n─────────────────\nبرای مشاهده متن کامل راهنمای تمام دستورات، دستور `.help` را تایپ کنید.\n\n💡 *برای بازگشت بنویسید:* `.panel`")
+                await event.edit(HELP_TEXT)
             return
 
         # 0c. Avengers: Doomsday Creative Command (.doomsday)
@@ -1194,6 +1209,13 @@ async def start_telegram_listener():
             cmd = raw_text[idx + len(matched_trigger):].strip()
             if not cmd:
                 cmd = "سلام"
+
+        if cmd.lower() in ("راهنما", "help", "دستورات", "دستورها", "کامندها", "کامند", "commands"):
+            try:
+                await event.edit(HELP_TEXT, parse_mode="markdown")
+            except Exception:
+                await event.edit(HELP_TEXT)
+            return
 
         print(f"[VPS Relay] Jarvis AI Triggered: '{raw_text}' -> Command: '{cmd}'")
 
